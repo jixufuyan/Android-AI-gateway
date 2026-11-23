@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -185,7 +184,8 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
         label = "topologyFlowPhase",
     )
 
-    SectionCard(modifier = modifier) {
+    // 这张卡信息密度高、又要占首页首屏，内边距和子项间距都比其它卡小一号
+    SectionCard(modifier = modifier, contentPadding = 14.dp, contentSpacing = 8.dp) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -301,7 +301,6 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
             var containerRect by remember { mutableStateOf<Rect?>(null) }
             var hubRect by remember { mutableStateOf<Rect?>(null) }
             val rowRects = remember { mutableStateMapOf<String, Rect>() }
-            var otherRect by remember { mutableStateOf<Rect?>(null) }
             val branchById = remember(branches) { branches.associateBy { it.providerId } }
 
             Box(
@@ -314,7 +313,6 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                     hub = hubRect,
                     rows = rowRects,
                     branches = branchById,
-                    other = otherRect,
                     isRunning = isRunning,
                     gold = gold,
                     goldEnd = goldEnd,
@@ -336,41 +334,46 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                         modifier = Modifier.onGloballyPositioned { hubRect = it.boundsInRoot() },
                     )
 
+                    val otherUsable = branches.drop(maxVisibleBranches).sumOf { it.usableAccounts }
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(start = 40.dp),
+                            .padding(start = 36.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        displayBranches.forEach { branch ->
+                        displayBranches.forEachIndexed { index, branch ->
                             val branchColor = palette[branch.colorIndex % palette.size]
-                            ProviderBranchRow(
-                                branch = branch,
-                                branchColor = branchColor,
-                                gold = gold,
-                                isRunning = isRunning,
-                                modifier = Modifier.onGloballyPositioned {
-                                    rowRects[branch.providerId] = it.boundsInRoot()
-                                },
-                            )
-                        }
-
-                        if (remainingCount > 0) {
-                            val otherUsable = branches.drop(maxVisibleBranches).sumOf { it.usableAccounts }
-                            // 折叠提示压成一行小字，不再做成高亮胶囊——它只是说明，不是可点区
-                            Box(
-                                modifier = Modifier
-                                    .onGloballyPositioned { otherRect = it.boundsInRoot() }
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                Text(
-                                    text = "+$remainingCount 其它 (${otherUsable}可用)",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
+                                ProviderBranchRow(
+                                    branch = branch,
+                                    branchColor = branchColor,
+                                    gold = gold,
+                                    isRunning = isRunning,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .onGloballyPositioned {
+                                            rowRects[branch.providerId] = it.boundsInRoot()
+                                        },
                                 )
+                                // 折叠计数并进最后一行右侧：原来单独占一行，白白多 20dp
+                                if (remainingCount > 0 && index == displayBranches.lastIndex) {
+                                    Text(
+                                        text = "+$remainingCount·${otherUsable}可用",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 9.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f))
+                                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -410,7 +413,7 @@ private fun ProviderBranchRow(
                 color = if (isBranchActive) gold else branchColor.copy(alpha = 0.45f),
                 shape = RoundedCornerShape(7.dp),
             )
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -455,7 +458,6 @@ private fun BoxScope.TopologyWiresCanvas(
     hub: Rect?,
     rows: Map<String, Rect>,
     branches: Map<String, TopologyProviderBranch>,
-    other: Rect?,
     isRunning: Boolean,
     gold: Color,
     goldEnd: Color,
@@ -474,7 +476,6 @@ private fun BoxScope.TopologyWiresCanvas(
             val branch = branches[pid] ?: return@forEach
             targets.add(Triple(rect, branch.weight, branch.hasActiveRequest && isRunning))
         }
-        other?.let { targets.add(Triple(it, 0.08f, false)) }
 
         targets.forEach { (rect, weight, active) ->
             val endX = rect.left - box.left
@@ -540,23 +541,28 @@ private fun GatewayHubNode(
                 color = if (isRunning) gold else MaterialTheme.colorScheme.outline,
                 shape = MaterialTheme.shapes.medium,
             )
-            .padding(horizontal = 9.dp, vertical = 7.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // 单行：品牌名 + 端口。两行会让中枢比分支列还高，纯浪费纵向空间
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = "AI-GATEWAY",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
+                letterSpacing = 0.6.sp,
                 color = if (isRunning) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
-            Spacer(Modifier.height(1.dp))
             Text(
-                text = "端口:$port",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
+                text = ":$port",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
                 fontWeight = FontWeight.SemiBold,
                 color = if (isRunning) goldEnd else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
     }
