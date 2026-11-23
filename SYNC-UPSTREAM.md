@@ -1,99 +1,85 @@
-# 上游同步手册（SYNC-UPSTREAM）
+# 上游同步手册：一条命令把二改跟到最新源码
 
-> 目标：上游 `xibai6668/Android-AI-gateway` 一更新，你这边**一条命令**就能把二改合并到最新源码，且不用重新踩一遍工具链的坑。
-
----
-
-## 一、一次性配置（只做一次）
-
-```bash
-cd 你的仓库目录
-
-# 1. 加一个上游远端（origin 是你自己的 fork）
-git remote add upstream https://github.com/xibai6668/Android-AI-gateway.git
-
-# 2. 你的二改放在独立分支上，固定叫 ide（脚本默认就是它）
-git branch -a                    # 确认当前在 ide 分支
-git push -u origin ide           # 推到自己的 fork 备份
-```
-
-分支模型（重要）：
-
-| 分支 | 作用 |
-|---|---|
-| `main` | 上游原样，只读，任何时候都能 `git checkout main && git pull upstream main` 看上游改了啥 |
-| `ide`  | **你的二改**，所有改动都在这里；每次上游更新都往这个分支合并 |
-
-> 只用一个分支也行（二改直接在 main 上），但那样就没法对照上游了，不推荐。
+适用对象：本仓库的二改分支（`ide`）。上游 = `https://github.com/xibai6668/Android-AI-gateway`（默认远端名 `upstream`，分支 `main`）。
 
 ---
 
-## 二、每次上游更新（日常）
+## 一、日常用法（就这一条）
 
 ```bash
 git checkout ide
 tools/sync-upstream.sh
 ```
 
-跑完看最后几行：`单测 + debug 包通过` 就说明合并成功，实机验证没问题再 `git push origin ide`。
+跑完看最后一段：**`单测 + debug 包通过`** 就说明这次同步是好的；实机装一遍没问题再 `git push origin ide`。
 
-三个开关：
-
-| 命令 | 用途 |
+| 命令 | 作用 |
 |---|---|
-| `tools/sync-upstream.sh` | 全流程：合并 → 适配 → 提交 → 单测 + 打 debug 包 |
-| `tools/sync-upstream.sh --no-build` | 只要合并和提交（冲突处理完后接着跑用这个） |
-| `tools/sync-upstream.sh --dry-run` | 演练：试合并 + 打印会改什么，然后自动回滚，不动任何提交 |
+| `tools/sync-upstream.sh` | 全流程：拉上游 → 合并 → 工具链适配 → 隐患扫描 → 提交 → 单测 + 打 debug 包 |
+| `tools/sync-upstream.sh --no-build` | 只到提交为止（**手工解完冲突后用这条接着跑**） |
+| `tools/sync-upstream.sh --dry-run` | 演练：试合并 + 打印会做什么，然后自动回滚，不产生任何提交 |
+
+首次使用只需配一次远端：
+
+```bash
+git remote add upstream https://github.com/xibai6668/Android-AI-gateway.git
+```
+
+分支约定：`main` 只跟上游（用来看改动），`ide` 是你的二改，所有同步都往 `ide` 里合。**不要**把二改直接写在 `main` 上，否则以后没法对照。
 
 ---
 
-## 三、脚本到底做了什么
+## 二、脚本按顺序做了 7 件事
 
 ```
-0/7 环境检查      工作区必须干净；检测是否有上次没合完的 MERGE_HEAD
-1/7 拉取上游      git fetch upstream main，并把上游的构建文件导出到 .sync-upstream/
-2/7 三方合并      git merge --no-commit --no-ff upstream/main
-      ├─ 冲突文件在「工具链清单」里 → 自动保留本地版（见第四节）
-      └─ 其它冲突 → 停下来列出文件，等你手工合并（脚本不替你决定业务逻辑）
-3/7 工具链适配    detekt 配置属性名回退 1.23 语法；上游新增依赖按字面量补进本地构建脚本
-4/7 隐患扫描      haze 2.x API 残留 / 函数自递归（这两类能编译，跑起来才炸）
-5/7 提交          merge 提交（消息带上游版本号）
-6/7 构建验证      ./gradlew :core:test :app:assembleDebug
-7/7 摘要          改动统计 + 推送/回滚命令
+0 环境检查     工作区必须干净；若上次合并没收尾（MERGE_HEAD 还在）就接着处理，不重跑合并
+1 拉上游       git fetch upstream main；把上游的 app/core/cli 构建文件导出到 .sync-upstream/ 备比对
+2 三方合并     git merge --no-commit --no-ff upstream/main
+   ├─ 工具链文件冲突      → 自动保留本地版（第三节）
+   ├─ detekt.yml 冲突     → 自动取上游版，第 3 步再把语法退回 1.23
+   └─ 其它文件冲突        → 停下来列出清单，等你手工合并（脚本不替你决定业务逻辑）
+3 工具链适配   detekt 属性名回退；上游新增依赖按字面量补进本地构建脚本；不兼容依赖只提示不补
+4 隐患扫描     haze 2.x API 残留、函数自递归（这两类能编译，跑起来才炸）
+5 提交         merge 提交，消息带上游短哈希
+6 构建验证     ./gradlew :core:test :app:assembleDebug
+7 摘要         上游版本 / 合并前后 SHA / 改动统计 / 推送与回滚命令
 ```
-
-### 工具链清单（这些文件永远保留你的版本）
-
-```
-build.gradle.kts
-app/build.gradle.kts
-core/build.gradle.kts
-cli/build.gradle.kts
-gradle.properties
-settings.gradle.kts
-gradle/libs.versions.toml
-gradle/wrapper/gradle-wrapper.properties
-gradle/wrapper/gradle-wrapper.jar
-gradlew
-gradlew.bat
-```
-
-**为什么**：上游把工具链抬到了 AGP 9.5.1 / Kotlin 2.4.21 / Gradle 9.9.1 / compileSdk 37 / build-tools 36.0.0 / haze 2.1.0 / detekt 2.0，而手机端的 Android Code Studio 只能跑 **AGP 8.13.0 / Kotlin 2.1.0 / Gradle 9.0.0 / compileSdk 36 / 不写死 build-tools / haze 1.6.10 / detekt 1.23.8**。这些文件一旦跟上游走，项目在 IDE 里连初始化都过不去。
 
 ---
 
-## 四、代码侧的四条固定适配（脚本能自动做的已经做了，剩下的要手改）
+## 三、工具链文件清单（冲突一律保留本地）
 
-### 1. haze 2.x → 1.x（**必须手改**，脚本只报警）
+```
+build.gradle.kts            app/build.gradle.kts        core/build.gradle.kts
+cli/build.gradle.kts        gradle.properties           settings.gradle.kts
+gradle/libs.versions.toml   gradle/wrapper/gradle-wrapper.properties
+gradle/wrapper/gradle-wrapper.jar                       gradlew / gradlew.bat
+```
 
-上游把模糊能力拆成了 `haze` + `haze-blur` 两个 artifact，API 也换了：
+**为什么必须保留本地**：上游把工具链抬到了 AGP 9.5.1 / Kotlin 2.4.21 / Gradle 9.9.1 / compileSdk 37 / 写死 build-tools 36.0.0 / haze 2.1.0 / detekt 2.0，而手机端 Android Code Studio 只能跑 **AGP 8.13.0 / Kotlin 2.1.0 / Gradle 9.0.0 / compileSdk 36 / 不写死 build-tools / haze 1.6.10 / detekt 1.23.8 / 版本目录 libs.versions.toml**。跟上游走的话，项目在 IDE 里连初始化都过不去（不是编译报错，是 sync 阶段直接失败）。
+
+要改这条清单：编辑 `tools/sync-upstream.sh` 里的 `TOOLCHAIN_FILES`。
+
+---
+
+## 四、代码侧适配：脚本能自动的 / 必须你手动确认的
+
+| 项目 | 处理 | 说明 |
+|---|---|---|
+| detekt 配置属性名 | **自动** | `allowedLines/allowedComplexity/allowedDepth/allowedConditions` → `threshold`；`UnusedPrivateFunction`+`UnusedPrivateProperty` → `UnusedPrivateMember`（幂等，已是 1.23 语法就不动） |
+| 上游新增第三方依赖 | **自动** | 以字面量补进 `app/core/cli` 的 `build.gradle.kts`，带 `// [sync-upstream]` 注释；已在版本目录里声明过的不重复补 |
+| 新工具链专属依赖 | **只提示** | `SKIP_DEPS` 名单（当前：`dev.chrisbanes.haze:haze-blur`）——这些是 Kotlin 2.4 / haze 2.x 专属，补进来要么编不过要么和 1.x 打架 |
+| haze 2.x API | **只提示** | 见下 |
+| 函数自递归 | **只提示** | 见下 |
+
+### 4.1 haze 2.x → 1.x（脚本会指出文件行号，改动要手做）
 
 ```kotlin
 // 上游 2.x
 val style = remember { HazeBlurStyle { backgroundColor(Color.Transparent); blurRadius(40.dp) } }
 Modifier.hazeBlur(input = HazeInput.Sources(hazeState), style = style)
 
-// 本地 1.x（1.6.10）
+// 本地 1.6.10
 val style = HazeStyle(
     backgroundColor = Color.Transparent,
     tints = listOf(HazeTint(color = surfaceColor.copy(alpha = tintAlpha))),
@@ -103,44 +89,44 @@ val style = HazeStyle(
 Modifier.hazeEffect(state = hazeState, style = style)
 ```
 
-涉及文件：`app/src/main/kotlin/dev/aigw/app/MainActivity.kt`（悬浮底栏）。
+常见位置：`app/src/main/kotlin/dev/aigw/app/MainActivity.kt`（悬浮玻璃底栏）。
 
-### 2. detekt 配置语法（**脚本自动**）
+### 4.2 函数自递归（历史上真崩过一次）
 
-`config/detekt/detekt.yml` 里 2.0 的属性名在 1.23 里算「拼错」，会直接失败：
+批量替换最容易踩：把 `Switch(` 全换成 `AppSwitch(` 时，`AppSwitch` 自己的函数体也被换了，变成自己调自己——编译完全正常，一点「设置」就 `StackOverflowError`，日志里全是 `v4.q3.b`。
 
-| detekt 2.0 | detekt 1.23 |
-|---|---|
-| `allowedLines` / `allowedComplexity` / `allowedDepth` / `allowedConditions` | `threshold` |
-| `UnusedPrivateFunction` + `UnusedPrivateProperty` | `UnusedPrivateMember` |
+修法：包装函数内部**写全限定名**调用真实现。
 
-### 3. 上游新增的第三方依赖（**脚本自动**）
+```kotlin
+@Composable
+fun AppSwitch(...) {
+    // 必须写全限定名：裸调用 Switch( 在批量替换后会变成 AppSwitch(，自己调自己
+    androidx.compose.material3.Switch(checked = checked, onCheckedChange = onCheckedChange, ...)
+}
+```
 
-脚本读上游 `app/core/cli` 的 `build.gradle.kts`，把本地没有的 `implementation("g:a:v")` 以字面量形式补到本地同名文件的 `dependencies` 末尾，带 `// [sync-upstream]` 注释，方便下次 review。
-
-### 4. 函数自递归（**脚本只报警**）
-
-用批量替换/重构时最容易踩：一个 composable 里调用自己，编译能过，一进组合就 `StackOverflowError`。日志会被 R8 混淆成 `v4.q3.b`，要靠 `mapping.txt` + retrace 才能看出是哪个函数。
-
-> 真实事故：把全仓 `Switch(` 批量换成 `AppSwitch(` 时，`AppSwitch` 自己的函数体也被换了，变成自己调自己，点「设置」直接崩。修法是函数体里写全限定名 `androidx.compose.material3.Switch(...)`。
+脚本每次跑都会扫 `app/src/main`（`tools/recursion_scan.py`）：块体做花括号配对、表达式体按语句边界取、import 同名符号（如 `Icon`）自动排除。`core` 里的 `walk()` / `write()` 是**刻意的递归**，所以扫描范围只放 `app`。
 
 ---
 
-## 五、冲突处理手册（按文件类型）
+## 五、冲突处理手册
 
-| 冲突文件 | 处理 |
+| 冲突文件 | 怎么办 |
 |---|---|
-| `build.gradle.kts` / `gradle.properties` / `settings.gradle.kts` / wrapper | 取本地（脚本自动） |
-| `app/build.gradle.kts` / `core/build.gradle.kts` | 取本地，然后看脚本第 3 步有没有补进上游新增依赖 |
-| `config/detekt/detekt.yml` | 取本地，脚本会自动回退语法 |
-| `README.md` / `ARCHITECTURE.md` | 取上游（文档跟着上游走最省心） |
-| **业务代码**（`core/**`、`app/src/**`） | 逐个看：上游新功能 + 你的二改**都要**；冲突块通常就是两边改了同一处 |
+| 第三节清单里的构建文件 | 脚本自动保留本地，不用管 |
+| `config/detekt/detekt.yml` | 脚本自动取上游 + 回退语法，不用管 |
+| `README.md` / `ARCHITECTURE.md` | 取上游（文档跟上游走最省心） |
+| `core/**`、`app/src/**` 业务代码 | **手工**：上游新功能 + 你的二改通常都要，冲突块就是两边动了同一段 |
 
-手工合并完之后：
+手工合并流程：
 
 ```bash
+# 1. 按脚本列出的清单逐个文件处理，搜 <<<<<<< / ======= / >>>>>>>
+vim <冲突文件>
+# 2. 标记行删干净、内容两边都保留
 git add -A
-tools/sync-upstream.sh --no-build     # 接着跑适配 + 提交
+# 3. 接着跑（不会从头再来，MERGE_HEAD 还在）
+tools/sync-upstream.sh --no-build
 ```
 
 ---
@@ -148,57 +134,33 @@ tools/sync-upstream.sh --no-build     # 接着跑适配 + 提交
 ## 六、验证与回滚
 
 ```bash
-# 完整验证（脚本第 6 步已自动跑）
+# 脚本第 6 步已经跑过；要更彻底就：
 ./gradlew :core:test :core:detekt :app:assembleDebug :app:assembleRelease
 
-# 回滚到合并前（脚本失败时会打印这条命令）
-git reset --hard <合并前的 commit>
+# 回滚到本次同步之前（脚本失败时会把这条命令原样打印出来）
+git reset --hard <合并前 SHA>
 ```
 
-发版包（release）需要 keystore，本地没有时只能出 debug 包：
+调试期想装机验证，又不想覆盖正式版：
 
 ```bash
-./gradlew :app:assembleDebug      # 包名 dev.aigw.app.debug，可与正式版共存
+./gradlew :app:assembleDebug     # 包名 dev.aigw.app.debug，与正式版可共存
 ```
 
 ---
 
-## 七、常见问题
+## 七、常见卡点
 
-**Q：第一次跑 `git fetch upstream` 特别慢？**
-GitHub 直连不稳，配个代理或者 `git config --global http.proxy` 再拉。
-
-**Q：脚本报「没有名为 upstream 的远端」？**
-按第一节加一次 `git remote add upstream ...`。
-
-**Q：构建卡在下载 Gradle 9.0.0？**
-首次会下 ~130MB 的发行版，网络差就多等；下完缓存在 `~/.gradle/wrapper/dists`。
-
-**Q：`build-tools` 没装？**
-`app/build.gradle.kts` 里刻意**不写** `buildToolsVersion`，让 AGP 自己挑已装的那套——所以别随手加回去。
-
-**Q：合并后崩溃日志全是 `a.b.c`？**
-R8 混淆后的正常现象。用该版本的 `app/build/outputs/mapping/release/mapping.txt` 还原：
-
-```bash
-tools/retrace.sh crash.log
-```
-
-**Q：能不能不合并，直接拿上游源码覆盖？**
-不行。你的二改包含三家供应商（百度搭子 / 智谱 AutoGLM / 智谱清言）、应用内网页登录、Tab 隐藏、首页局域网指标、卡片化 UI 等，覆盖即丢。三方合并才是正解。
+- **`git fetch` 很慢/失败**：GitHub 直连不稳，挂代理或 `git config --global http.proxy ...`。
+- **卡在下载 Gradle 9.0.0**：首次要下 ~130MB，之后缓存在 `~/.gradle/wrapper/dists`。
+- **提示 build-tools 没装**：`app/build.gradle.kts` 里刻意**不写** `buildToolsVersion`，让 AGP 自己挑已装的那套，别手贱加回去。
+- **崩溃日志全是 `a.b.c`**：R8 混淆后的正常现象，用同版本 `app/build/outputs/mapping/release/mapping.txt` 还原：`tools/retrace.sh crash.log`。**每次发版都要把 mapping.txt 跟 APK 一起归档**，丢了就永远还原不了。
+- **能不能直接拿上游覆盖？** 不行。二改里有三家供应商（百度搭子 / 智谱 AutoGLM / 智谱清言）、应用内网页登录、Tab 隐藏、首页局域网指标、卡片化 UI、统一开关配色，覆盖即丢；只有三方合并能同时保住两边。
 
 ---
 
-## 八、手动流程（不想跑脚本时）
+## 八、脚本自身的坑（改脚本时注意）
 
-```bash
-git fetch upstream
-git merge upstream/main                 # 冲突按第五节处理
-# 工具链文件冲突时：
-git checkout --ours -- app/build.gradle.kts core/build.gradle.kts build.gradle.kts \
-    gradle.properties settings.gradle.kts gradle/libs.versions.toml \
-    gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.jar gradlew gradlew.bat
-git add -A
-./gradlew :core:test :app:assembleDebug
-git commit -m "merge: 同步上游"
-```
+- 判断是否有冲突**不能**写 `git ls-files -u | grep -q .`：脚本开了 `pipefail`，`grep -q` 提前退出会让管道返回 141，条件恒假。已改成 `[ -n "$(git ls-files -u -- 文件)" ]`。
+- 演练模式（`--dry-run`）也要照样解决工具链冲突，只是最后整单 `git merge --abort`，这样「剩余冲突」列表才是真的需要你处理的那些。
+- 补依赖时 `awk` 找的是文件**最后一个顶格 `}`**，所以别在 `dependencies {}` 之后再写顶格花括号的块。
