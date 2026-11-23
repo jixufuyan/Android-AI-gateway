@@ -74,14 +74,27 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ok "仓库 $REPO_ROOT"
 ok "分支 $BRANCH（二改分支，建议就叫 ide）"
 
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  die "工作区有未提交改动，先 commit 或 git stash"
-fi
-
+# 是否处于「上次没合完」的状态：必须在干净检查之前判断，
+# 因为手工解完冲突后必然是「已暂存、未提交」的样子
 RESUMING=0
 if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
   RESUMING=1
-  warn "上次合并没有收尾，本次接着处理（跳过合并步骤）"
+fi
+
+if [ "$RESUMING" = "1" ]; then
+  UNDONE=$(git diff --name-only --diff-filter=U 2>/dev/null)
+  if [ -n "$UNDONE" ]; then
+    die "还有没解完的冲突文件：\n$UNDONE"
+  fi
+  # git diff（不带 --cached）只看未暂存改动：合并续跑时已暂存的解决内容不算脏
+  if ! git diff --quiet; then
+    echo "  未暂存的文件："
+    git diff --name-only | sed 's/^/      /'
+    die "合并中还有未暂存的改动，先 git add 再重跑"
+  fi
+  warn "延续上次未收尾的合并（已暂存的冲突解决会被提交）"
+elif [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  die "工作区有未提交改动，先 commit 或 git stash"
 fi
 
 # ---------------------------------------------------------------------------
