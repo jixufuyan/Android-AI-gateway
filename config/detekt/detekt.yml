@@ -13,22 +13,22 @@ complexity:
   LongMethod:
     active: true
     # 网关核心文件本来就有 2000+ 行，方法阈值按现状放宽，只拦明显失控的
-    allowedLines: 520
+    threshold: 520
   LongParameterList:
     active: false
   CyclomaticComplexMethod:
     active: true
     # 网关的请求主链路（chatCompletions）天然是个大分支表，拆开反而更难跟。
     # 阈值定在「再往上就该拆」的线上，不让既有代码天天报红。
-    allowedComplexity: 130
+    threshold: 130
   TooManyFunctions:
     active: false
   NestedBlockDepth:
     active: true
-    allowedDepth: 8
+    threshold: 8
   ComplexCondition:
     active: true
-    allowedConditions: 6
+    threshold: 6
   LargeClass:
     active: false
 
@@ -40,11 +40,8 @@ style:
     active: false
   ReturnCount:
     active: false
-  UnusedPrivateClass:
-    active: true
-  UnusedPrivateFunction:
-    active: true
-  UnusedPrivateProperty:
+  # 1.23.x 没有 UnusedPrivateFunction/Property：统一由 UnusedPrivateMember 覆盖
+  UnusedPrivateMember:
     active: true
   UnusedParameter:
     active: false

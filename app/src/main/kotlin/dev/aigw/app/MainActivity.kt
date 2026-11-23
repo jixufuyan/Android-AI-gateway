@@ -46,11 +46,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
-import dev.chrisbanes.haze.blur.hazeBlur
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -535,19 +534,15 @@ private fun FloatingNavBar(tab: Tab, subPage: SubPage?, haze: HazeState, onSelec
     val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val tintAlpha = if (isLight) 0.18f else 0.14f
     val surfaceColor = MaterialTheme.colorScheme.surface
-    // 2.x 的 Style 按引用比较，每次重组新建会反复替换节点，必须 remember。
-    val glassStyle = remember(surfaceColor, tintAlpha) {
-        HazeBlurStyle {
-            backgroundColor(Color.Transparent)
-            blurRadius(40.dp)
-            noiseFactor(0.04f)
-            colorEffects(
-                listOf(
-                    HazeColorEffect.tint(surfaceColor.copy(alpha = tintAlpha)),
-                ),
-            )
-        }
-    }
+    // 1.x 的 HazeStyle 是 data class，直接按值比较，不必 remember。
+    val glassStyle = HazeStyle(
+        backgroundColor = Color.Transparent,
+        tints = listOf(
+            HazeTint(color = surfaceColor.copy(alpha = tintAlpha)),
+        ),
+        blurRadius = 40.dp,
+        noiseFactor = 0.04f,
+    )
 
     Box(
         modifier = Modifier
@@ -568,8 +563,8 @@ private fun FloatingNavBar(tab: Tab, subPage: SubPage?, haze: HazeState, onSelec
                 .clip(CircleShape)
                 // 玻璃本体：模糊背景 + 极浅色调。不透明度必须低，
                 // 否则实色会把模糊盖住，看上去就是一块普通半透明底。
-                .hazeBlur(
-                    input = HazeInput.Sources(haze),
+                .hazeEffect(
+                    state = haze,
                     style = glassStyle,
                 )
                 .drawWithContent {
