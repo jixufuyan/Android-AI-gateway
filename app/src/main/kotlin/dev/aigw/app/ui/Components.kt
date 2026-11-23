@@ -189,10 +189,6 @@ fun SectionCard(
     modifier: Modifier = Modifier,
     enterIndex: Int? = null,
     pressable: Boolean = false,
-    /** 内边距：信息密度高的卡片（如首页拓扑）可以调小，默认值保持不变。 */
-    contentPadding: Dp = 18.dp,
-    /** 子项间距：同上，只有确实需要压高度的卡片才传。 */
-    contentSpacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(
@@ -206,8 +202,8 @@ fun SectionCard(
             .then(modifier),
     ) {
         Column(
-            modifier = Modifier.padding(contentPadding),
-            verticalArrangement = Arrangement.spacedBy(contentSpacing),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
     }
