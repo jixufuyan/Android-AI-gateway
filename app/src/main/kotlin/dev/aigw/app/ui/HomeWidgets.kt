@@ -199,18 +199,27 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                     haloSize = 15.dp,
                 ),
             )
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Text(
                     text = "实时调度拓扑",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.2.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
+                // 说明文字并入标题同一行：拓扑本身纵向就吃紧，再占一整行纯属浪费
                 Text(
                     text = basisCaption,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
 
@@ -267,13 +276,11 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
             }
         }
 
-        Spacer(Modifier.height(4.dp))
-
         if (branches.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(68.dp)
+                    .height(40.dp)
                     .clip(MaterialTheme.shapes.small)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center,
@@ -317,7 +324,7 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     GatewayHubNode(
@@ -332,8 +339,8 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(start = 44.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(start = 40.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         displayBranches.forEach { branch ->
                             val branchColor = palette[branch.colorIndex % palette.size]
@@ -350,17 +357,19 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
 
                         if (remainingCount > 0) {
                             val otherUsable = branches.drop(maxVisibleBranches).sumOf { it.usableAccounts }
+                            // 折叠提示压成一行小字，不再做成高亮胶囊——它只是说明，不是可点区
                             Box(
                                 modifier = Modifier
                                     .onGloballyPositioned { otherRect = it.boundsInRoot() }
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
                             ) {
                                 Text(
                                     text = "+$remainingCount 其它 (${otherUsable}可用)",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
                                 )
                             }
                         }
@@ -380,15 +389,18 @@ private fun ProviderBranchRow(
     modifier: Modifier = Modifier,
 ) {
     val isBranchActive = branch.hasActiveRequest && isRunning
-    Box(
+    // 单行布局：圆点 + 供应商名 + 在途 + 可用账号数，全部挤在一行里。
+    // 原来「名字」「x/y 可用」各占一行，三行分支就是 ~150dp，现在 ~72dp。
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(7.dp))
             .drawBehind {
                 if (isBranchActive) {
                     drawRoundRect(
                         color = gold.copy(alpha = 0.15f),
                         size = size,
-                        cornerRadius = CornerRadius(8.dp.toPx()),
+                        cornerRadius = CornerRadius(7.dp.toPx()),
                     )
                 }
             }
@@ -396,44 +408,37 @@ private fun ProviderBranchRow(
             .border(
                 width = if (isBranchActive) 1.5.dp else 1.dp,
                 color = if (isBranchActive) gold else branchColor.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(7.dp),
             )
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(branchColor))
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = branch.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isBranchActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        maxLines = 1,
-                    )
-                    if (branch.activeCount > 0) {
-                        Text(
-                            text = "(${branch.activeCount}在途)",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, fontFamily = FontFamily.Monospace),
-                            color = gold,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-                Text(
-                    text = "${branch.usableAccounts}/${branch.totalAccounts} 可用",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
+        Box(Modifier.size(5.dp).clip(CircleShape).background(branchColor))
+        Text(
+            text = branch.displayName,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isBranchActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (branch.activeCount > 0) {
+            Text(
+                text = "${branch.activeCount}在途",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, fontFamily = FontFamily.Monospace),
+                color = gold,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
         }
+        Text(
+            text = "${branch.usableAccounts}/${branch.totalAccounts}",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
@@ -535,7 +540,7 @@ private fun GatewayHubNode(
                 color = if (isRunning) gold else MaterialTheme.colorScheme.outline,
                 shape = MaterialTheme.shapes.medium,
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 9.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -546,7 +551,7 @@ private fun GatewayHubNode(
                 letterSpacing = 0.8.sp,
                 color = if (isRunning) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(1.dp))
             Text(
                 text = "端口:$port",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
