@@ -145,7 +145,7 @@ fun AccountEnableSwitch(
     actions: ProviderUiActions,
     modifier: Modifier = Modifier,
 ) {
-    Switch(
+    AppSwitch(
         checked = account.enabled,
         onCheckedChange = { actions.onToggleAccount(providerId, account.uid, it) },
         modifier = modifier,

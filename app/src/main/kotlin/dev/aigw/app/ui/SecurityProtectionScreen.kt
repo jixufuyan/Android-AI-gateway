@@ -20,7 +20,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -167,7 +166,7 @@ fun PrivacyRedactionComponent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = state.security.privacyRedactionEnabled,
                 onCheckedChange = onToggle,
             )
@@ -202,7 +201,7 @@ fun DesensitizationComponent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = state.security.sanitizeEnabled,
                 onCheckedChange = onToggle,
             )
@@ -262,7 +261,7 @@ fun PromptRewriteComponent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = state.security.promptRewriteEnabled,
                 onCheckedChange = onToggle,
             )
@@ -300,7 +299,7 @@ fun PromptRewriteComponent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(
+                    AppSwitch(
                         checked = setName in activePresets,
                         onCheckedChange = { onTogglePreset(setName) },
                     )

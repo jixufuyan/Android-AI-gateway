@@ -36,7 +36,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -515,7 +514,7 @@ private fun DiagnosticsSettings(state: AppUiState, viewModel: AppViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = state.settings.verboseLogging,
                 onCheckedChange = {
                     viewModel.updateSettings(state.settings.copy(verboseLogging = it))
@@ -547,7 +546,7 @@ private fun CallLogSettings(state: AppUiState, viewModel: AppViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                AppSwitch(
                     checked = state.settings.callLoggingEnabled,
                     onCheckedChange = {
                         viewModel.updateSettings(state.settings.copy(callLoggingEnabled = it))

@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -76,7 +75,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("同时监听局域网", modifier = Modifier.weight(1f))
-                Switch(
+                AppSwitch(
                     checked = settings.exposeLan,
                     onCheckedChange = { viewModel.updateSettings(settings.copy(exposeLan = it)) },
                 )
@@ -105,7 +104,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("无 Key 调用", modifier = Modifier.weight(1f))
-                Switch(
+                AppSwitch(
                     checked = settings.allowNoKey,
                     onCheckedChange = { viewModel.updateSettings(settings.copy(allowNoKey = it)) },
                 )
@@ -161,7 +160,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                AppSwitch(
                     checked = settings.onlyUsableModels,
                     onCheckedChange = { viewModel.updateSettings(settings.copy(onlyUsableModels = it)) },
                 )

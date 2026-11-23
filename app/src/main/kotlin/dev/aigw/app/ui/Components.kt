@@ -35,6 +35,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -207,6 +210,47 @@ fun SectionCard(
             content = content,
         )
     }
+}
+
+/**
+ * 全局统一的滑动开关。
+ *
+ * Material3 默认拿 `outline` 当作「关闭态圆点」色，而本项目亮色主题的 `outline` 是
+ * #ECECF0 的发丝线色——圆点几乎糊在轨道上，一眼看不出开关是关着的。
+ * 这里把关闭态的圆点/描边统一压到 onSurfaceVariant（亮色 #8A8F99、深色同值），
+ * 两种主题下都清楚；所有设置页（含二级页）都用它，避免各页各写一套颜色。
+ */
+@Composable
+fun AppSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: SwitchColors = appSwitchColors(),
+) {
+    AppSwitch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        enabled = enabled,
+        colors = colors,
+    )
+}
+
+/** [AppSwitch] 的配色：只把「关闭态」调深，开启态仍走主题主色。 */
+@Composable
+fun appSwitchColors(): SwitchColors {
+    val scheme = MaterialTheme.colorScheme
+    return SwitchDefaults.colors(
+        // 关闭：圆点中灰、轨道描边可见
+        uncheckedThumbColor = scheme.onSurfaceVariant,
+        uncheckedTrackColor = scheme.surfaceVariant,
+        uncheckedBorderColor = scheme.onSurfaceVariant.copy(alpha = 0.45f),
+        // 关闭 + 禁用：保留层次但不再发白
+        disabledUncheckedThumbColor = scheme.onSurfaceVariant.copy(alpha = 0.38f),
+        disabledUncheckedTrackColor = scheme.surfaceVariant,
+        disabledUncheckedBorderColor = scheme.onSurfaceVariant.copy(alpha = 0.18f),
+    )
 }
 
 /**

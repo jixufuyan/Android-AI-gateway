@@ -15,7 +15,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -151,7 +150,7 @@ fun AccountTransferScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(checked = exportAll, onCheckedChange = { exportAll = it })
+                AppSwitch(checked = exportAll, onCheckedChange = { exportAll = it })
             }
             if (!exportAll) {
                 AccountTree(
@@ -316,7 +315,7 @@ fun AccountTransferScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(checked = overwrite, onCheckedChange = { overwrite = it })
+                    AppSwitch(checked = overwrite, onCheckedChange = { overwrite = it })
                 }
                 // 主操作放列表之前：账号多时不用滚到底才能找到导入按钮
                 Button(
