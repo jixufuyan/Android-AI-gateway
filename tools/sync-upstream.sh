@@ -102,7 +102,9 @@ else
   if [ "$MERGE_RC" -ne 0 ]; then
     warn "存在冲突，先自动处理工具链文件"
     for f in $TOOLCHAIN_FILES; do
-      if git ls-files -u -- "$f" 2>/dev/null | grep -q .; then
+      # 注意：不能写 `git ls-files -u | grep -q .`——pipefail 下 grep 提前退出会让
+      # 管道返回 141，条件恒假（这个坑真的踩过）
+      if [ -n "$(git ls-files -u -- "$f" 2>/dev/null)" ]; then
         # 演练时也照样解决（只动索引，最后整单回滚），这样「剩余冲突」列表才是准的
         if git checkout --ours -- "$f" 2>/dev/null; then
           git add -- "$f" && warn "保留本地版：$f"
