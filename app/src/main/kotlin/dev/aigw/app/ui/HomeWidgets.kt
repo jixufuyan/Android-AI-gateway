@@ -330,7 +330,7 @@ internal fun HomeTopologyWidget(state: AppUiState, modifier: Modifier = Modifier
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(start = 40.dp),
+                            .padding(start = 60.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
                         displayBranches.forEach { branch ->
@@ -378,10 +378,9 @@ private fun ProviderBranchRow(
     modifier: Modifier = Modifier,
 ) {
     val isBranchActive = branch.hasActiveRequest && isRunning
-    // 铺满整列：原来每个框宽度随文字长短变化，右边缘参差不齐，看着很随意
+    // 胶囊宽度由文字决定（原版行为），不铺满整列
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .drawBehind {
                 if (isBranchActive) {
@@ -401,14 +400,12 @@ private fun ProviderBranchRow(
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(branchColor))
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -418,9 +415,6 @@ private fun ProviderBranchRow(
                         fontWeight = FontWeight.SemiBold,
                         color = if (isBranchActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        // 名称占满剩余宽度，「N在途」才能贴到右边缘
-                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (branch.activeCount > 0) {
                         Text(
