@@ -164,3 +164,16 @@ git reset --hard <合并前 SHA>
 - 判断是否有冲突**不能**写 `git ls-files -u | grep -q .`：脚本开了 `pipefail`，`grep -q` 提前退出会让管道返回 141，条件恒假。已改成 `[ -n "$(git ls-files -u -- 文件)" ]`。
 - 演练模式（`--dry-run`）也要照样解决工具链冲突，只是最后整单 `git merge --abort`，这样「剩余冲突」列表才是真的需要你处理的那些。
 - 补依赖时 `awk` 找的是文件**最后一个顶格 `}`**，所以别在 `dependencies {}` 之后再写顶格花括号的块。
+
+---
+
+## 九、实测记录（这四种上游更新场景都跑过）
+
+| 场景 | 上游改动 | 脚本表现 |
+|---|---|---|
+| 纯文档更新 | 只改 `README.md` | 无冲突直接合，`单测 + debug 包通过` |
+| 依赖 + 配置 | 新增 `okio` 依赖、`detekt.yml` 用 2.0 属性名、改 `GatewayEngine.kt` | `app/build.gradle.kts` 冲突保留本地并补进 `okio`（带缩进）；`haze-blur` 被跳过并提示人工决定；`detekt.yml` 取上游后自动退回 `threshold` / `UnusedPrivateMember`；构建通过 |
+| 工具链冲突 | 改 `app/build.gradle.kts` 的 compileSdk / 版本号 | 一律保留本地版，不跟上游抬工具链 |
+| 业务代码冲突 | 改了二改也改过的 `lanUrls()` | 停下来列出冲突文件 → 手工合并 → `git add -A && tools/sync-upstream.sh --no-build` 续跑，正常提交 |
+
+跑完后 `git log --oneline` 会多一条 `merge: 同步上游 <短哈希>`，随时能用摘要里给的 SHA 回滚。
