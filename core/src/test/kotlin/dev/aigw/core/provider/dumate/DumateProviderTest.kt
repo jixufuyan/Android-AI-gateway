@@ -164,7 +164,10 @@ class DumateProviderTest {
 
     @Test
     fun `模型目录是静态表且解析别名`() {
-        val models = provider.listModels(null)
+        // 目录是静态表：只要有一个账号就直接给出，不需要打上游；
+        // 无账号时按约定返回空目录（不误导用户点进去必然失败），所以这里必须传账号。
+        assertTrue(provider.listModels(null).models.isEmpty(), "无账号不该列模型")
+        val models = provider.listModels(importAccount())
         assertTrue(models.models.isNotEmpty())
         assertTrue(models.error.isEmpty(), "上游本来就没有模型列表接口，不该报错")
         assertEquals("model-text", provider.resolveModel(""))

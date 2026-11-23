@@ -1,7 +1,7 @@
 name: Android Release
 
 # 仅手动触发：只有在明确需要 release 包时才在云端构建并直接发版。
-# 本地开发一律走 debug 包（见 scripts/build.sh 与 app/build.gradle.kts 的 buildTypes.debug）。
+# 本地不产出任何包；发版包统一在云端构建（本地无 release keystore）。
 on:
   workflow_dispatch:
 
@@ -12,23 +12,23 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # 生成 Release 说明需要上一个 tag 到本次的完整历史
           fetch-depth: 0
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
 
       - uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '8.11.1'
+          gradle-version: '9.9.1'
 
       - name: 还原 release keystore
         env:
@@ -52,7 +52,7 @@ jobs:
         run: gradle :core:detekt --console=plain
 
       - name: 单元测试
-        run: gradle :core:test :app:testDebugUnitTest --console=plain
+        run: gradle :core:test :app:testReleaseUnitTest --console=plain
 
       - name: 打包 release
         run: gradle :app:assembleRelease --console=plain
@@ -86,7 +86,7 @@ jobs:
         run: cp app/build/outputs/apk/release/app-release.apk "ai-gateway-${{ steps.version.outputs.version }}-release.apk"
 
       - name: 创建 Release 并上传 APK
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}
           # 不指定时 GitHub 会把 tag 建在默认分支顶端，导致从分支发版时 tag 指向的代码与产物不符。

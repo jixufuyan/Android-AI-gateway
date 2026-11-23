@@ -7,8 +7,6 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    // 对齐 MyEmpty：仓库只在 settings 里声明，模块里再写 repositories 会直接报错。
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
