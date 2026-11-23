@@ -228,7 +228,8 @@ fun AppSwitch(
     enabled: Boolean = true,
     colors: SwitchColors = appSwitchColors(),
 ) {
-    AppSwitch(
+    // 必须写全限定名：本文件里 Switch( 会被批量替换成 AppSwitch(，写成裸调用会自己调自己
+    androidx.compose.material3.Switch(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier,
