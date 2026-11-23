@@ -28,8 +28,11 @@ import dev.aigw.core.provider.QuotaPack
 import dev.aigw.core.provider.RoutedModel
 import dev.aigw.core.provider.SmsLoginSupport
 import dev.aigw.core.provider.WebLoginSupport
+import dev.aigw.core.provider.dumate.DumateLogin
 import dev.aigw.core.provider.WebLoginTicket
 import dev.aigw.core.provider.antigravity.AntigravityProvider
+import dev.aigw.core.provider.chatglm.ChatglmProvider
+import dev.aigw.core.provider.dumate.DumateProvider
 import dev.aigw.core.provider.custom.CustomProvider
 import dev.aigw.core.provider.raccoon.RaccoonProvider
 import dev.aigw.core.provider.trae.TraeProvider
@@ -546,7 +549,12 @@ class GatewayEngine(
     fun exposedModels(): List<RoutedModel> {
         // 只聚合一次：以前 groupModels() 内部又调了一次 models()，N 个路由组 = N+1 次打全部上游
         val all = models()
-        return filterExposed(all) + groupModels(all)
+        // 同款模型自动合并（移植自本地网关）：`glm-5.3-flash` 与 `glm-5-3-flash-20250101`
+        // 这类同物异名只留一条，避免模型列表重复、精选名单勾重。
+        // 路由组必须在合并**之前**投影：否则组内成员的模型可能已被并掉、取不到元数据。
+        return dev.aigw.core.provider.ModelMerge.mergeSameModel(
+            filterExposed(all) + groupModels(all),
+        )
     }
 
     /** 把路由组投影成模型条目；能力/上下文取自组内首位成员的模型元数据。 */
@@ -750,7 +758,13 @@ class GatewayEngine(
 
     fun localUrl(): String = "http://127.0.0.1:${settings.port}/v1"
 
-    fun lanUrls(): List<String> = lanAddressProvider.lanAddresses().map { "http://$it:${settings.port}/v1" }
+    /**
+     * 局域网接入地址：仅在「同时监听局域网」开启时有意义——关闭时服务器只绑
+     * 127.0.0.1，返回空列表，首页/接入设置页自动不再展示局域网地址。
+     */
+    fun lanUrls(): List<String> =
+        if (!settings.exposeLan) emptyList()
+        else lanAddressProvider.lanAddresses().map { "http://$it:${settings.port}/v1" }
 
     fun status(): GatewayStatus = GatewayStatus(
         running = isRunning(),
@@ -1272,6 +1286,42 @@ class GatewayEngine(
     }
 
     // ------------------------------------------------------------------ 登录
+
+    /**
+     * 应用内网页登录（百度搭子）：把 WebView 攒到的 cookie 换成账号。
+     *
+     * 和 [completeWebLogin] 的区别是「凭证来源」——那边等的是 OAuth 风格的回调链接，
+     * 这边拿到的是整包 cookie。校验与建号都在 provider 侧完成，这里只负责落池。
+     */
+    fun importLoginCookies(providerId: String, cookie: String): LoginOutcome {
+        val provider = registry.get(providerId)
+            ?: return LoginOutcome(LoginState.FAILED, error = "未知供应商")
+        return try {
+            val account = when (providerId) {
+                // 搭子：cookie 先换 token 再取用户信息，账号对象复用中间产物，
+                // 别再打一遍同样的接口
+                DumateProvider.ID -> {
+                    val login = DumateLogin(hooks = hooks)
+                    val outcome = login.accountFromCookie(cookie)
+                    val account = login.lastAccount
+                    if (account == null) {
+                        return LoginOutcome(LoginState.FAILED, error = outcome.error.ifEmpty { "登录未完成" })
+                    }
+                    account
+                }
+                // 智谱清言：交付物是 {token, refreshToken, deviceId} JSON，
+                // importCredentials 内部会验活（user/info）——站点对未登录访客
+                // 也下发匿名 chatglm_token cookie，不验活会导入空账号
+                ChatglmProvider.ID -> provider.importCredentials(cookie)
+                    ?: return LoginOutcome(LoginState.FAILED, error = "登录未完成")
+                else -> return LoginOutcome(LoginState.FAILED, error = "该供应商不支持网页登录")
+            }
+            adopt(providerId, account, "登录")
+        } catch (e: Exception) {
+            logWarn("登录失败（$providerId）：${e.message}")
+            LoginOutcome(LoginState.FAILED, error = e.message ?: "登录失败")
+        }
+    }
 
     /**
      * 打开系统浏览器完成登录，返回要打开的 URL。

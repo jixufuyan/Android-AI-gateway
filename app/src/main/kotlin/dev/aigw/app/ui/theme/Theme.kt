@@ -17,16 +17,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-// 黑金极简设计规范 Token（默认值；实际生效值见 Appearance.kt 的 LocalAppColors）
+// 黑金极简设计规范 Token：主色渐变两端（原版默认 #D4A843 / #B88A20）。
+// 名字保留 Gold* 是为了不改动已有引用（Appearance.kt 的 AppColors 自定义字段名同样是 goldStart/goldEnd）；
+// 语义就是「主色渐变的两端」。
 val GoldAccent = Color(0xFFD4A843)
 val GoldText = Color(0xFFB88A20)
-val HairlineBorder = Color(0xFFEAEAEA)
+val HairlineBorder = Color(0xFFECECF0)
 
 /** 告警琥珀：客户端中断的调用记录与日志 WARN 级别共用（非错误态，区别于 error 红）。 */
-val WarningAmber = Color(0xFFC97F0A)
+val WarningAmber = Color(0xFFB26A00)
 
 /** 近黑深色（与浅色 scheme 的 onSurface 同值）：趋势图「输出」序列的线条/图例与色相环滑块描边等需压深的深色前景。 */
-val DeepInk = Color(0xFF0D0D0D)
+val DeepInk = Color(0xFF1F2329)
 
 /** 用 [app] 的两端金构造浅色 scheme；其余语义色固定。 */
 private fun lightScheme(app: AppColors): ColorScheme = lightColorScheme(
@@ -38,23 +40,23 @@ private fun lightScheme(app: AppColors): ColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFF5F5F7),
     onSecondaryContainer = Color(0xFF0D0D0D),
-    tertiary = Color(0xFF10B981),
+    tertiary = Color(0xFF3D8B7D),
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFF0FDF4),
-    onTertiaryContainer = Color(0xFF166534),
-    background = Color(0xFFFCFCFD),
-    onBackground = Color(0xFF0D0D0D),
+    tertiaryContainer = Color(0xFFE3F2EC),
+    onTertiaryContainer = Color(0xFF2E7D66),
+    background = Color(0xFFF5F5F6),
+    onBackground = Color(0xFF1F2329),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF0D0D0D),
-    surfaceVariant = Color(0xFFF8F8FA),
-    onSurfaceVariant = Color(0xFF777777),
+    onSurface = Color(0xFF1F2329),
+    surfaceVariant = Color(0xFFF0F1F3),
+    onSurfaceVariant = Color(0xFF8A8F99),
     surfaceContainerHighest = Color(0xFFF0F0F2),
     outline = HairlineBorder,
-    outlineVariant = Color(0xFFEDEDED),
-    error = Color(0xFFBA1A1A),
+    outlineVariant = Color(0xFFECECF0),
+    error = Color(0xFFC0453B),
     onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF93000A),
+    errorContainer = Color(0xFFFBE9E7),
+    onErrorContainer = Color(0xFFB33F33),
 )
 
 /** 用 [app] 的两端金构造深色 scheme；其余语义色固定。 */
@@ -71,12 +73,12 @@ private fun darkScheme(app: AppColors): ColorScheme = darkColorScheme(
     onTertiary = Color(0xFF141414),
     tertiaryContainer = Color(0xFF064E3B),
     onTertiaryContainer = Color(0xFFD1FAE5),
-    background = Color(0xFF0A0A0A),
-    onBackground = Color(0xFFF5F5F5),
-    surface = Color(0xFF141414),
+    background = Color(0xFF101214),
+    onBackground = Color(0xFFE9EBEF),
+    surface = Color(0xFF17191C),
     onSurface = Color(0xFFF5F5F5),
     surfaceVariant = Color(0xFF1E1E1E),
-    onSurfaceVariant = Color(0xFF999999),
+    onSurfaceVariant = Color(0xFF8A8F99),
     surfaceContainerHighest = Color(0xFF262626),
     outline = Color(0xFF2A2A2A),
     outlineVariant = Color(0xFF2A2A2A),

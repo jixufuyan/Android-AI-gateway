@@ -548,7 +548,7 @@ private fun GatewayHubNode(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = ":$port",
+                text = "端口:$port",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontFamily = FontFamily.Monospace),
                 fontWeight = FontWeight.SemiBold,
                 color = if (isRunning) goldEnd else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -561,14 +561,22 @@ private fun GatewayHubNode(
 
 /** 2×3 遥测指标网格。 */
 @Composable
-internal fun HomeMetricsWidget(state: AppUiState, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+internal fun HomeMetricsWidget(
+    state: AppUiState,
+    viewModel: AppViewModel,
+    modifier: Modifier = Modifier,
+) {
+    // 聚合模型卡依赖模型目录：进首页时触发首次拉取（进程内只拉一次，
+    // 与模型页 ensureModelsLoaded 共用同一标记，不会重复打上游）。
+    // 之前只有进模型页才拉，首页的「聚合模型」永远显示 0。
+    LaunchedEffect(Unit) { viewModel.ensureModelsLoaded() }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ProvidersTile(state, Modifier.weight(1f))
             ReadinessTile(state, Modifier.weight(1f))
             ModelsTile(state, Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RequestsTile(state, Modifier.weight(1f))
             TodayTokensTile(state, Modifier.weight(1f))
             CreditsTile(state, Modifier.weight(1f))
@@ -580,12 +588,12 @@ internal fun HomeMetricsWidget(state: AppUiState, modifier: Modifier = Modifier)
 private fun Tile(modifier: Modifier, label: String, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier
-            .height(112.dp)
+            .height(92.dp)
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.large)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Text(
             text = label,
@@ -604,7 +612,7 @@ private fun BigNumber(value: String, suffix: String? = null, color: Color = Colo
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Light,
             color = if (color != Color.Unspecified) color else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -665,8 +673,8 @@ private fun ReadinessTile(state: AppUiState, modifier: Modifier) {
 private fun ReadinessRing(percent: Int, fraction: Float) {
     val ringColor = LocalAppColors.current.goldStart
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxWidth().height(44.dp)) {
+    Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxWidth().height(36.dp)) {
             val strokeWidth = 4.dp.toPx()
             val diameter = size.minDimension - strokeWidth
             val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)

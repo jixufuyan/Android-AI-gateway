@@ -4,7 +4,15 @@
     <color name="ic_launcher_background">#0A0B0D</color>
     <color name="page_background">#F3F6FB</color>
 
+    <!-- 品牌主色：与 Compose 侧 GoldAccent 同源；登录页 Activity 的主题按钮色由它解析 -->
+    <color name="brand_accent">#D4A843</color>
+
     <style name="Theme.AiGateway" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- 主色指向品牌金：登录页 Activity 的「已完成登录」按钮从主题解析颜色，
+             没有这条会回退到框架 Material Light 的默认浅灰（白底上看不见） -->
+        <item name="android:colorPrimary">@color/brand_accent</item>
+        <item name="android:colorPrimaryDark">@color/brand_accent</item>
+        <item name="android:colorAccent">@color/brand_accent</item>
         <item name="android:windowBackground">@color/page_background</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

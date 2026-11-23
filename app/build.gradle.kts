@@ -3,9 +3,9 @@ import java.io.File
 import java.util.Properties
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 /**
@@ -42,14 +42,15 @@ fun keystoreValue(key: String): String =
 android {
     namespace = "dev.aigw.app"
     compileSdk = 36
-    buildToolsVersion = "35.0.0"
+    // buildToolsVersion 不再写死：写死一个未安装的版本会让构建直接失败，
+    // 让 AGP 自己选已安装的那套（与 MyEmpty 一致）。
 
     defaultConfig {
         applicationId = "dev.aigw.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 230
-        versionName = "2.38.0"
+        versionCode = 238
+        versionName = "2.38.8"
     }
 
     buildFeatures {
@@ -137,34 +138,34 @@ dependencies {
     implementation(project(":core"))
 
     // :core 用 implementation 引 gson，不传递；app 里要直接构造 JsonObject（如动作 payload）
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation(libs.gson)
 
-    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation(platform(libs.compose.bom))
+    implementation(libs.androidx.core.ktx)
     // 登录走 Custom Tab：裸 ACTION_VIEW 会让进程被系统判 idle 冻结，本地回调端口随之失聪
-    implementation("androidx.browser:browser:1.8.0")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     // 1.1.0 起不再依赖旧版 Tink 的 alpha 通道；之前停在 alpha06，是加密存储的核心依赖
-    implementation("androidx.security:security-crypto:1.1.0")
+    implementation(libs.androidx.security.crypto)
 
     // 首页编辑态的拖拽排序：自己写的手势在 LazyColumn 里反复被滚动抢手势、
     // 重排动画与跟手位移双重叠加，换成这个库（基于官方 animateItem）。
-    implementation("sh.calvin.reorderable:reorderable:3.1.0")
+    implementation(libs.reorderable)
 
     // 液态玻璃底栏：真正的背景模糊（backdrop blur）。Compose 原生做不到，
     // 1.6.10 是最后一个用 Kotlin 2.1.0 构建的版本，与本项目编译器一致。
-    implementation("dev.chrisbanes.haze:haze:1.6.10")
+    implementation(libs.haze)
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
     // 本地 JVM 上的 Android 单元测试：本仓没有 emulator，instrumented 测试跑不了，
     // 用 Robolectric 在 JVM 里验证文件落盘与导出内容这类真实逻辑。
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.18.1")
-    testImplementation("androidx.test:core:1.6.1")
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }

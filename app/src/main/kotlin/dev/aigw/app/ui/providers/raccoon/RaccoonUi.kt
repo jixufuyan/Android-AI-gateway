@@ -60,10 +60,12 @@ object RaccoonUi : ProviderUi {
             SectionCard(enterIndex = 0) {
                 SectionLabel("登录")
                 Button(
-                    onClick = { actions.onWebLogin(id, "") },
+                    // 内置 WebView 登录：系统浏览器接不住 127.0.0.1 回环回调，
+                    // 登录完成后在 WebView 层拦截回调链接自动换取凭证
+                    onClick = { actions.onLoginWebView(id) },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("在浏览器中打开小浣熊登录页")
+                    Text("打开小浣熊登录页面")
                 }
                 OutlineActionButton(
                     text = if (expanded) "收起粘贴导入" else "粘贴回调链接导入",

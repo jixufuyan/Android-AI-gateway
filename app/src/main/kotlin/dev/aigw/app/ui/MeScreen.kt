@@ -35,6 +35,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -76,6 +78,8 @@ fun MeScreen(state: AppUiState, viewModel: AppViewModel, open: (SubPage) -> Unit
         title = "我的",
         subtitle = "网关与偏好设置",
         onTitleClick = { showAbout = true },
+        // 卡片两边留白收窄：更接近本地网关设置页的满幅卡片观感
+        contentHorizontalPadding = 10.dp,
     ) {
         // 顶部事实陈述：全部取自可核实的运行状态
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -106,42 +110,41 @@ fun MeScreen(state: AppUiState, viewModel: AppViewModel, open: (SubPage) -> Unit
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
 
-        EditorialGroupHeader("01", "外观与主题 · APPEARANCE")
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        SettingsCard(title = "外观与主题", note = "明暗模式、配色、底栏样式", enterIndex = 1) {
             EditorialRow(
-                "01",
                 "主题设置",
                 "明暗模式、配色、底栏样式",
                 appearanceMeta(state),
             ) { open(SubPage.ThemeSettings) }
         }
 
-        EditorialGroupHeader("02", "核心功能偏好 · CORE FUNCTIONS")
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            EditorialRow("02.1", "接入设置 · ENDPOINTS", "端口与 API Key", ":${state.port}") { open(SubPage.ApiSettings) }
+        SettingsCard(title = "核心功能偏好", note = "网关运行的全部可调项", enterIndex = 2) {
             EditorialRow(
-                "02.2",
+                "接入设置 · ENDPOINTS",
+                "端口与 API Key",
+                ":${state.port}",
+            ) { open(SubPage.ApiSettings) }
+            EditorialRow(
                 "安全防护 · SECURITY",
                 "反审核脱敏与账号限速",
                 if (state.security.sanitizeEnabled) "脱敏开启" else "脱敏关闭",
             ) { open(SubPage.SecurityProtection) }
             EditorialRow(
-                "02.3",
                 "并发与容错 · RESILIENCE",
                 "并发闸门、重试退避与熔断器",
                 concurrencySummary(state.failover),
             ) { open(SubPage.Resilience) }
             EditorialRow(
-                "02.4",
                 "额度中心 · CREDITS",
                 "按供应商查看额度包明细",
                 if (state.pool.creditsKnown > 0) formatCount(state.pool.totalCredits) else "",
             ) { open(SubPage.CreditCenter) }
-            EditorialRow("02.5", "用量统计 · TELEMETRY", "请求数、token 与成功率", formatTokens(state.today.totalTokens)) {
-                open(SubPage.Usage)
-            }
             EditorialRow(
-                "02.6",
+                "用量统计 · TELEMETRY",
+                "请求数、token 与成功率",
+                formatTokens(state.today.totalTokens),
+            ) { open(SubPage.Usage) }
+            EditorialRow(
                 "代理设置 · NETWORK PROXY",
                 "多套配置，按供应商或区域决定是否走代理",
                 when {
@@ -151,58 +154,49 @@ fun MeScreen(state: AppUiState, viewModel: AppViewModel, open: (SubPage) -> Unit
                 },
             ) { open(SubPage.Proxy) }
             EditorialRow(
-                "02.7",
                 "保活与权限 · BACKGROUND",
                 "通知、电池优化与后台限制",
                 if (state.keepAlive?.allGood == true) "就绪" else "待配置",
             ) { open(SubPage.KeepAlive) }
             EditorialSwitchRow(
-                index = "02.8",
                 title = "实时状态通知 · LIVE STATUS",
                 subtitle = "仅网关有请求时显示，点击回到 App",
                 checked = state.liveNotification,
                 onCheckedChange = { viewModel.setLiveNotification(it) },
             )
             EditorialRow(
-                "02.9",
                 "账号导入导出 · ACCOUNTS BACKUP",
                 "按供应商与账号备份、迁移凭证",
                 "${state.pool.total} 个账号",
             ) { open(SubPage.AccountTransfer) }
             EditorialRow(
-                "02.10",
                 "客户端密钥 · CLIENT KEYS",
                 "谁能调用网关，可限制模型与用量",
                 if (state.clientKeys.isEmpty()) "未创建" else "${state.clientKeys.size} 把",
             ) { open(SubPage.ClientKeys) }
             EditorialRow(
-                "02.11",
                 "路由组 · ROUTING GROUPS",
                 "多个模型合成一个对外模型名",
                 if (state.routingGroups.groups.isEmpty()) "未创建" else "${state.routingGroups.groups.size} 组",
             ) { open(SubPage.RoutingGroups) }
             EditorialRow(
-                "02.12",
                 "模型价格 · PRICING",
                 "按 token 计算调用费用",
                 if (state.pricing.prices.isEmpty()) "未配置" else "${state.pricing.prices.size} 个模型",
             ) { open(SubPage.ModelPricing) }
             EditorialRow(
-                "02.13",
                 "请求改写 · REWRITE",
-                "模型别名、system 追加与思考标签",
+                "模型别名、系统注入 / 追加与思考标签",
                 rewriteSummary(state.middleware),
             ) { open(SubPage.RequestRewrite) }
             EditorialRow(
-                "02.14",
                 "崩溃日志 · CRASH",
                 "异常退出时的堆栈记录",
                 crashSummary(),
             ) { open(SubPage.CrashLog) }
         }
 
-        EditorialGroupHeader("03", "架构关于 · ABOUT THE ENGINE")
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsCard(title = "架构关于", enterIndex = 3) {
             Text(
                 text = "ai-gateway · 本地 OpenAI 兼容网关",
                 style = MaterialTheme.typography.titleSmall,
@@ -220,69 +214,126 @@ fun MeScreen(state: AppUiState, viewModel: AppViewModel, open: (SubPage) -> Unit
             )
         }
 
-        EditorialRow(
-            "04.1",
-            "检查更新 · CHECK UPDATE",
+        SettingsCard(title = "更新与项目", enterIndex = 4) {
+            EditorialRow(
+                "检查更新 · CHECK UPDATE",
             "从 GitHub Releases 获取最新版本",
             if (state.updateChecking) "检查中…" else "",
         ) { if (!state.updateChecking) viewModel.checkUpdate() }
 
         EditorialRow(
-            "04.2",
             "项目地址 · GITHUB",
             "在浏览器打开源码仓库",
             "GitHub",
         ) { viewModel.openProjectRepo() }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("自动检查更新", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "打开应用时后台检测，每天最多一次",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("自动检查更新", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "打开应用时后台检测，每天最多一次",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.autoCheckUpdate,
+                    onCheckedChange = { viewModel.setAutoCheckUpdate(it) },
                 )
             }
-            Switch(
-                checked = state.autoCheckUpdate,
-                onCheckedChange = { viewModel.setAutoCheckUpdate(it) },
-            )
         }
     }
 }
 
 /**
- * 编辑式条目：左侧等宽编号 + 标题 + 灰色副标题，右侧真实元数据（为空则不显示）+ 金色箭头。
+ * 本地网关风格设置卡片：一个设置模块一张圆角卡片，标题与说明放在卡内，
+ * 条目之间靠行距区分，不再逐条画分割线（对应本地网关 fragment_settings.xml 的 bg_card 布局）。
+ */
+@Composable
+private fun SettingsCard(
+    title: String,
+    note: String? = null,
+    enterIndex: Int? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enterIndex != null) Modifier.staggeredAppear(enterIndex) else Modifier)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+    ) {
+        // 卡片标题要比条目标题（titleSmall）明显高一档：更大号 + 加粗 +
+        // 主色竖条标记，否则「外观与主题」和卡内的「主题设置」看起来同级
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 18.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        RoundedCornerShape(2.dp),
+                    ),
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        if (note != null) {
+            Text(
+                text = note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 12.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.padding(top = 10.dp),
+            content = content,
+        )
+    }
+}
+
+/**
+ * 编辑式条目：左侧等宽编号 + 语义图标徽标 + 标题 + 灰色副标题，
+ * 右侧真实元数据（按 [accent] 着色，为空则不显示）+ 同色箭头。
  */
 @Composable
 private fun EditorialRow(
-    index: String,
     title: String,
     subtitle: String,
     meta: String,
     onClick: () -> Unit,
 ) {
+    val tint = LocalAppColors.current.goldStart
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().pressScale().clickable(onClick = onClick).padding(vertical = 10.dp),
+            // 条目整体右缩进：与卡片主标题（竖条 + 大号加粗）拉开一层
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp)
+                .pressScale()
+                .clickable(onClick = onClick)
+                .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = index,
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                // 标题固定单行：「中文 · ENGLISH」被挤成两行会破坏栅格（英文标签跑到第二行）
+                // 标题固定单行：「中文 · ENGLISH」被挤成两行会破坏栅格（英文标签跑到第二行）。
+                // 颜色比卡片主标题暗一档：主标题是分组名（强调），条目标题是可点项（弱一档）
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -296,37 +347,42 @@ private fun EditorialRow(
                 Text(
                     text = meta,
                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = tint,
+                    modifier = Modifier
+                        .background(tint.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
-            Text(text = "→", style = MaterialTheme.typography.bodyMedium, color = LocalAppColors.current.goldStart)
+            Text(text = "→", style = MaterialTheme.typography.bodyMedium, color = tint)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
-/** 编辑式开关条目：编号 + 标题 + 副标题 + 右侧 Switch（与 [EditorialRow] 同一栅格）。 */
+/** 编辑式开关条目：编号 + 图标徽标 + 标题 + 副标题 + 右侧 Switch（与 [EditorialRow] 同一栅格）。 */
 @Composable
 private fun EditorialSwitchRow(
-    index: String,
     title: String,
     subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val tint = LocalAppColors.current.goldStart
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            // 与 EditorialRow 同一缩进：条目层低于卡片主标题一层
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp)
+                .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = index,
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -335,7 +391,6 @@ private fun EditorialSwitchRow(
             }
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -346,8 +401,10 @@ private fun appearanceMeta(state: AppUiState): String {
         dev.aigw.app.ui.theme.ThemeMode.Dark -> "深色"
         dev.aigw.app.ui.theme.ThemeMode.System -> "自动"
     }
-    val customGold = formatHex(state.goldStart) != "#D4A843" || formatHex(state.goldEnd) != "#B88A20"
-    return mode + " · " + (if (customGold) formatHex(state.goldStart) else "默认金")
+    // 与 AppearanceStore 的默认值比较，而不是写死旧金色：换主题色时这里不用再改。
+    val customGold = formatHex(state.goldStart) != AppearanceStore.DEFAULT_GOLD_START ||
+        formatHex(state.goldEnd) != AppearanceStore.DEFAULT_GOLD_END
+    return mode + " · " + (if (customGold) formatHex(state.goldStart) else "默认品牌色")
 }
 
 private fun appVersion(context: android.content.Context): String = runCatching {
@@ -735,6 +792,7 @@ private fun concurrencySummary(failover: dev.aigw.core.failover.ModelFailoverSet
 private fun rewriteSummary(settings: dev.aigw.core.gateway.MiddlewareSettings): String {
     val parts = buildList {
         if (settings.aliases.isNotEmpty()) add("别名 ${settings.aliases.size}")
+        if (settings.systemPromptPrepend.isNotBlank()) add("注入提示词")
         if (settings.systemPromptAppend.isNotBlank()) add("追加提示词")
         if (settings.stripThinkTags) add("清理思考标签")
     }

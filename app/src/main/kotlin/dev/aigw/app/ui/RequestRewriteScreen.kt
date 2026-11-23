@@ -1,5 +1,6 @@
 package dev.aigw.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,7 +39,14 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
     var systemAppend by remember(state.middleware.systemPromptAppend) {
         mutableStateOf(state.middleware.systemPromptAppend)
     }
+    var systemPrepend by remember(state.middleware.systemPromptPrepend) {
+        mutableStateOf(state.middleware.systemPromptPrepend)
+    }
     val stripThinkTags = state.middleware.stripThinkTags
+    // 输入框展开态：内容多时输入框会撑得很高，把卡片顶到几屏长；
+    // 默认收起成 3 行，点「展开/收起」手动切换
+    var appendExpanded by remember { mutableStateOf(false) }
+    var prependExpanded by remember { mutableStateOf(false) }
 
     PageScaffold(
         title = "请求改写",
@@ -76,6 +84,33 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
 
         SectionLabel("system 提示词追加")
         SectionCard(enterIndex = 2) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "启用追加",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "关掉后内容保留但不再追加，临时停用免清空重填。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.middleware.systemPromptAppendEnabled,
+                    onCheckedChange = { enabled ->
+                        viewModel.updateMiddleware(
+                            state.middleware.copy(systemPromptAppendEnabled = enabled),
+                        )
+                    },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = "追加到第一条 system 消息的末尾；没有 system 消息时新建一条。留空表示不改。",
                 style = MaterialTheme.typography.bodySmall,
@@ -85,11 +120,91 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 value = systemAppend,
                 onValueChange = { systemAppend = it },
                 label = { Text("追加内容") },
-                minLines = 3,
+                minLines = if (appendExpanded) 6 else 3,
+                maxLines = if (appendExpanded) 12 else 3,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (appendExpanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { appendExpanded = !appendExpanded }
+                        .padding(vertical = 4.dp),
+                )
+                Spacer(Modifier.weight(1f))
+            }
             OutlineActionButton("保存追加内容") {
                 viewModel.updateMiddleware(state.middleware.copy(systemPromptAppend = systemAppend))
+            }
+        }
+
+        SectionLabel("注入提示词（自定义）")
+        SectionCard(enterIndex = 9) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "启用注入",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "关掉后内容保留但不再注入，临时停用免清空重填。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.middleware.systemPromptPrependEnabled,
+                    onCheckedChange = { enabled ->
+                        viewModel.updateMiddleware(
+                            state.middleware.copy(systemPromptPrependEnabled = enabled),
+                        )
+                    },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "放到对话最前面的 system 文本，用于破甲 / 角色设定这类必须排在最前的场景；" +
+                    "空着就不注入。本应用**不内置任何载荷**，内容完全由你决定（存储在本地设置里）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = systemPrepend,
+                onValueChange = { systemPrepend = it },
+                label = { Text("注入内容") },
+                placeholder = { Text("（留空 = 不注入）") },
+                minLines = if (prependExpanded) 6 else 3,
+                maxLines = if (prependExpanded) 12 else 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (prependExpanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { prependExpanded = !prependExpanded }
+                        .padding(vertical = 4.dp),
+                )
+                Spacer(Modifier.weight(1f))
+            }
+            OutlineActionButton("保存注入内容") {
+                viewModel.updateMiddleware(
+                    state.middleware.copy(systemPromptPrepend = systemPrepend),
+                )
             }
         }
 

@@ -1,7 +1,12 @@
 package dev.aigw.app.ui
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -25,6 +30,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.aigw.app.ui.providers.ProviderUiActions
@@ -53,6 +59,27 @@ fun ProviderDetailScreen(
     val creditPacks = rememberUpdatedState(state.creditPacks)
     val taskLists = rememberUpdatedState(state.taskLists)
     val pointsBills = rememberUpdatedState(state.pointsBills)
+    // 应用内网页登录的当前供应商（非空时整页被登录页覆盖，目前只有百度搭子）
+    val activeLogin = remember { mutableStateOf("") }
+    // 智谱清言：独立 Activity（Compose 容器里 agentmore 渲染白屏，Activity 模式已验证可用）
+    val context = LocalContext.current
+    val chatglmLoginLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val payload = result.data?.getStringExtra(ChatglmLoginActivity.EXTRA_PAYLOAD).orEmpty()
+        if (payload.isNotEmpty()) {
+            viewModel.completeCookieLogin("chatglm", payload)
+        }
+    }
+    // 小浣熊：内置 WebView 登录页，返回的回调链接走与粘贴导入同一条换取链路
+    val raccoonLoginLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val payload = result.data?.getStringExtra(RaccoonLoginActivity.EXTRA_PAYLOAD).orEmpty()
+        if (payload.isNotEmpty()) {
+            viewModel.importCredentials("raccoon", payload)
+        }
+    }
     val actions = remember(viewModel, providerId) {
         ProviderUiActions(
             // 登录一律交给系统浏览器：本机 WebView 渲染异常（整页缩放错乱、输入框文字镜像），
@@ -64,6 +91,23 @@ fun ProviderDetailScreen(
                     viewModel.sendSmsCode(id, phone, ccode, onResult)
                 } else {
                     viewModel.smsLogin(id, phone, code, ccode, onResult)
+                }
+            },
+            onLoginWebView = {
+                id ->
+                if (id == "chatglm") {
+                    // 智谱清言：独立 Activity 自己清旧登录态，不走 cookie 罐预清
+                    chatglmLoginLauncher.launch(Intent(context, ChatglmLoginActivity::class.java))
+                } else if (id == "raccoon") {
+                    // 小浣熊：内置 WebView（系统浏览器接不住 127.0.0.1 回环回调）
+                    raccoonLoginLauncher.launch(Intent(context, RaccoonLoginActivity::class.java))
+                } else if (id == "dumate") {
+                    // 先清 cookie 罐再进登录页：罐里旧登录态会让新登录拿到
+                    // 对不上设备指纹的凭证，表现为「登录成功却换不到 token」
+                    DumateLoginWebView.clearJar()
+                    activeLogin.value = id
+                } else {
+                    viewModel.notice("该供应商不支持网页登录")
                 }
             },
             onImport = { id, raw -> viewModel.importCredentials(id, raw) },
@@ -111,6 +155,7 @@ fun ProviderDetailScreen(
         state.models.filter { it.providerId == providerId }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     PageScaffold(
         title = info?.displayName ?: providerId,
         subtitle = "${accounts.size} 个账号 · 可用 ${accounts.count { it.usable }}",
@@ -216,6 +261,22 @@ fun ProviderDetailScreen(
         ui.SettingsSection(providerSettings) { updated ->
             viewModel.updateProviderSettings(providerId, updated)
         }
+
+    }
+
+    // 应用内网页登录：覆盖在外层 Box 之上（不能放进 PageScaffold 的可滚动内容——
+    // 那会被当成普通 item 追加在页面末尾滚出视野，表现为「点按钮没反应」）。
+    // 登录成功/取消都会销毁这个 WebView。
+    if (activeLogin.value.isNotEmpty()) {
+        val loginProvider = activeLogin.value
+        DumateLoginScreen(
+            onDone = { cookie ->
+                activeLogin.value = ""
+                viewModel.completeCookieLogin(loginProvider, cookie)
+            },
+            onCancel = { activeLogin.value = "" },
+        )
+    }
     }
 }
 

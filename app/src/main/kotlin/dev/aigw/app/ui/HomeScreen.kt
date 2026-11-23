@@ -222,7 +222,7 @@ private fun HomeWidgetContent(
         HomeWidget.LAST_CALL -> RecentCallCard(state, openLogs)
         HomeWidget.CONTEXT -> ContextCapacityCard(state)
         HomeWidget.TOPOLOGY -> HomeTopologyWidget(state)
-        HomeWidget.METRICS -> HomeMetricsWidget(state)
+        HomeWidget.METRICS -> HomeMetricsWidget(state, viewModel)
         HomeWidget.TREND -> HomeTrendWidget(state)
         HomeWidget.ANTIGRAVITY -> HomeQuotaWidget(state, viewModel)
     }
@@ -251,11 +251,12 @@ private fun GatewayStatusCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(
-                text = ":${state.port}",
+    /*        Text(
+                text = "端口:${state.port}",
+                text = "端口:${state.port}",
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            )*/
             Box(Modifier.weight(1f))
             Box(
                 modifier = Modifier

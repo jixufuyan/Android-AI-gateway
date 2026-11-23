@@ -40,6 +40,20 @@
             </intent-filter>
         </activity>
 
+        <!-- 智谱清言网页登录：独立 Activity——agentmore.chatglm.cn 在
+             Compose AndroidView 容器里渲染白屏，XML/Activity 模式（本地网关同款）已验证可用 -->
+        <activity
+            android:name=".ui.ChatglmLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 小浣熊网页登录：独立 Activity——系统浏览器接不住 127.0.0.1 回环回调，
+             内置 WebView 在跳转前拦截回调链接再换凭证（对齐智谱清言登录页模式） -->
+        <activity
+            android:name=".ui.RaccoonLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <service
             android:name=".service.GatewayService"
             android:exported="false"

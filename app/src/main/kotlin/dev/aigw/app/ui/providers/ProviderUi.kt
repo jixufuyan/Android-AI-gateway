@@ -38,6 +38,13 @@ class ProviderUiActions(
     val onSmsLogin:
         (providerId: String, phone: String, code: String, ccode: String, onResult: (String) -> Unit) -> Unit =
         { _, _, _, _, _ -> },
+    /**
+     * 应用内网页登录（百度搭子）：拉起全屏 WebView 登录页，登录完成直接落池。
+     *
+     * 与 [onWebLogin] 的区别是「不等回调」——百度登录只把结果写进 cookie，
+     * 没有可回调的 URL，所以要在同一个 WebView 里完成并读 cookie。
+     */
+    val onLoginWebView: (providerId: String) -> Unit = { _ -> },
     /** 粘贴凭证 JSON 导入。 */
     val onImport: (providerId: String, raw: String) -> Unit = { _, _ -> },
     /** 刷新额度；uid 为空表示刷新该供应商全部账号。 */

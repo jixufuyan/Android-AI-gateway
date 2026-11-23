@@ -117,13 +117,23 @@ class AppearanceStore(private val store: KeyValueStore) {
         if (hex.isNullOrBlank()) store.delete(KEY_BG) else store.write(KEY_BG, hex)
     }
 
-    fun goldStartHex(): String = store.read(KEY_GOLD_START) ?: DEFAULT_GOLD_START
+    /**
+     * 品牌主色两端（实际生效值）。
+     *
+     * 蓝色旧值 #4A90D9/#3A78B8：读到时视为「未自定义」并回落原版金色，
+     * 否则升级后旧值会盖掉主题色（改 Theme.kt 也不会生效——上一版就是这样）。
+     */
+    fun goldStartHex(): String = store.read(KEY_GOLD_START)
+        ?.takeIf { it.isNotBlank() && !it.equals(LEGACY_GOLD_START, ignoreCase = true) }
+        ?: DEFAULT_GOLD_START
 
     fun setGoldStartHex(hex: String) {
         store.write(KEY_GOLD_START, hex)
     }
 
-    fun goldEndHex(): String = store.read(KEY_GOLD_END) ?: DEFAULT_GOLD_END
+    fun goldEndHex(): String = store.read(KEY_GOLD_END)
+        ?.takeIf { it.isNotBlank() && !it.equals(LEGACY_GOLD_END, ignoreCase = true) }
+        ?: DEFAULT_GOLD_END
 
     fun setGoldEndHex(hex: String) {
         store.write(KEY_GOLD_END, hex)
@@ -151,8 +161,13 @@ class AppearanceStore(private val store: KeyValueStore) {
     }
 
     companion object {
+        /** 品牌主色两端（原版黑金配色）：#D4A843 / #B88A20。 */
         const val DEFAULT_GOLD_START = "#D4A843"
         const val DEFAULT_GOLD_END = "#B88A20"
+
+        /** 蓝色旧值（黑金主题变体之前的默认）：读到时视为「未自定义」，自动跟随原版金色。 */
+        private const val LEGACY_GOLD_START = "#4A90D9"
+        private const val LEGACY_GOLD_END = "#3A78B8"
 
         private const val KEY_DYNAMIC = "settings/appearance.dynamicColor"
         private const val KEY_MODE = "settings/appearance.themeMode"
@@ -1314,6 +1329,31 @@ class AppViewModel(
             _state.value = _state.value.copy(busy = "", notice = noticeOf(outcome))
             onResult(if (outcome.ok) "" else outcome.error)
             refresh()
+        }
+    }
+
+    /**
+     * 应用内网页登录：WebView 拿到的整包 cookie/凭证直接换账号。
+     *
+     * [onResult] 回传（成功？, 失败原因）：智谱清言的验活失败不算终态——
+     * 页面要保持打开让用户继续登录，新 token 到手后会再次提交。
+     */
+    fun completeCookieLogin(
+        providerId: String,
+        cookie: String,
+        onResult: (Boolean, String) -> Unit = { _, _ -> },
+        /** false 时不弹全局 notice：智谱清言验活失败在登录页内展示，不打扰全屏流程。 */
+        notify: Boolean = true,
+    ) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = "正在校验登录态")
+            val outcome = withContext(Dispatchers.IO) { engine.importLoginCookies(providerId, cookie) }
+            _state.value = _state.value.copy(
+                busy = "",
+                notice = if (notify) noticeOf(outcome) else _state.value.notice,
+            )
+            refresh()
+            onResult(outcome.ok, outcome.error)
         }
     }
 

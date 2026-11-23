@@ -10,6 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -229,6 +235,10 @@ private fun AppRoot(viewModel: AppViewModel, state: AppUiState) {
         }
     }
 
+    // 二级页隐藏底栏，但主页面布局必须保持不变：底栏隐藏期间视口变高，
+    // 返回时 LazyColumn 像素偏移不变，卡片会被底栏遮半截（真实踩过）。
+    // 所以内容 padding 恒按「底栏可见」计算，隐藏期间多出的留白被二级页盖住，不可见。
+    val showBottomBar = subPage == null
     CompositionLocalProvider(LocalBottomContentPadding provides if (state.floatingNavBar) 78.dp else 0.dp) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -237,21 +247,38 @@ private fun AppRoot(viewModel: AppViewModel, state: AppUiState) {
         // 同时给内容区留出底栏高度，避免最后一屏内容被玻璃盖住。
         contentWindowInsets = if (state.floatingNavBar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
         bottomBar = {
-            if (state.floatingNavBar) {
-                FloatingNavBar(tab, subPage, hazeState, onSelect = { item ->
-                    subPage = null
-                    tab = item
-                    if (item == Tab.Models) viewModel.ensureModelsLoaded()
-                })
-            } else {
-                DockedNavBar(tab, subPage, onSelect = { item ->
-                    subPage = null
-                    tab = item
-                    if (item == Tab.Models) viewModel.ensureModelsLoaded()
-                })
+            // 二级页隐藏底栏：淡出/淡入跟随二级页滑入滑出（不直接移除），
+            // 过渡期间不会露出主页面底部的空白；主页面布局已冻结
+            // （boxBottom/78dp 恒定），底栏槽位高度变化不影响列表滚动位置。
+            AnimatedVisibility(
+                visible = subPage == null,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(200)),
+            ) {
+                if (state.floatingNavBar) {
+                    FloatingNavBar(tab, subPage, hazeState, onSelect = { item ->
+                        subPage = null
+                        tab = item
+                        if (item == Tab.Models) viewModel.ensureModelsLoaded()
+                    })
+                } else {
+                    DockedNavBar(tab, subPage, onSelect = { item ->
+                        subPage = null
+                        tab = item
+                        if (item == Tab.Models) viewModel.ensureModelsLoaded()
+                    })
+                }
             }
         },
     ) { insets ->
+        // 底栏隐藏期间冻结内容区底部 padding：否则返回时视口变矮，
+        // LazyColumn 像素偏移不变，最后一张卡片会被底栏遮半截
+        val insetsBottom = insets.calculateBottomPadding()
+        var lastVisibleBottom by remember { mutableStateOf(0.dp) }
+        if (showBottomBar && insetsBottom > 0.dp) lastVisibleBottom = insetsBottom
+        val boxBottom = if (showBottomBar) insetsBottom else lastVisibleBottom
+        // 外层满屏盒：二级页覆盖层画在这里，能盖住主页面底部冻结的留白与导航条区域
+        Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -261,17 +288,33 @@ private fun AppRoot(viewModel: AppViewModel, state: AppUiState) {
                     if (state.floatingNavBar) {
                         Modifier.hazeSource(hazeState)
                     } else {
-                        Modifier.padding(bottom = insets.calculateBottomPadding())
+                        Modifier.padding(bottom = boxBottom)
                     },
                 ),
         ) {
-            // 二级页推拉过渡：推入从右滑入，返回向右滑出
-            AnimatedContent(
-                targetState = subPage,
-                transitionSpec = { pushPopSpec() },
+            // 主 tab 页面常驻组合：二级页用覆盖层盖在上面，返回时列表滚动位置不丢
+            // （AnimatedContent 切换会销毁重建页面，LazyColumn 滚动位置跟着丢）
+            MainTabs(
+                viewModel = viewModel,
+                state = state,
+                tab = tab,
+                onTab = { newTab ->
+                    subPage = null
+                    tab = newTab
+                    if (newTab == Tab.Models) viewModel.ensureModelsLoaded()
+                },
+                onSubPage = { subPage = it },
+            )
+        }
+        // 二级页覆盖层：填满整个内容区（含主页面底部冻结的留白与导航条区域），
+        // 滑入盖在主 tab 上，返回滑出
+        AnimatedVisibility(
+                visible = subPage != null,
+                enter = slideInHorizontally { it } + fadeIn(),
+                exit = slideOutHorizontally { it } + fadeOut(),
                 label = "subPage",
-            ) { page ->
-                when (page) {
+            ) {
+                when (val page = subPage) {
                 is SubPage.ProviderDetail -> ProviderDetailScreen(
                     providerId = page.providerId,
                     state = state,
@@ -343,17 +386,7 @@ private fun AppRoot(viewModel: AppViewModel, state: AppUiState) {
                 SubPage.ModelPricing -> ModelPricingScreen(state, viewModel) { subPage = null }
                 SubPage.RequestRewrite -> RequestRewriteScreen(state, viewModel) { subPage = null }
                 SubPage.CrashLog -> CrashLogScreen { subPage = null }
-                null -> MainTabs(
-                    viewModel = viewModel,
-                    state = state,
-                    tab = tab,
-                    onTab = { newTab ->
-                        subPage = null
-                        tab = newTab
-                        if (newTab == Tab.Models) viewModel.ensureModelsLoaded()
-                    },
-                    onSubPage = { subPage = it },
-                )
+                else -> {}
                 }
             }
         }
