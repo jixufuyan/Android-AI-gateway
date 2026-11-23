@@ -103,9 +103,8 @@ else
     warn "存在冲突，先自动处理工具链文件"
     for f in $TOOLCHAIN_FILES; do
       if git ls-files -u -- "$f" 2>/dev/null | grep -q .; then
-        if [ "$DRY_RUN" = "1" ]; then
-          warn "（演练）会保留本地版：$f"
-        elif git checkout --ours -- "$f" 2>/dev/null; then
+        # 演练时也照样解决（只动索引，最后整单回滚），这样「剩余冲突」列表才是准的
+        if git checkout --ours -- "$f" 2>/dev/null; then
           git add -- "$f" && warn "保留本地版：$f"
         fi
       fi
