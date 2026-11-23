@@ -582,12 +582,7 @@ class GatewayEngine(
     fun exposedModels(): List<RoutedModel> {
         // 只聚合一次：以前 groupModels() 内部又调了一次 models()，N 个路由组 = N+1 次打全部上游
         val all = models()
-        // 同款模型自动合并（移植自本地网关）：`glm-5.3-flash` 与 `glm-5-3-flash-20250101`
-        // 这类同物异名只留一条，避免模型列表重复、精选名单勾重。
-        // 路由组必须在合并**之前**投影：否则组内成员的模型可能已被并掉、取不到元数据。
-        return dev.aigw.core.provider.ModelMerge.mergeSameModel(
-            filterExposed(all) + groupModels(all),
-        )
+        return filterExposed(all) + groupModels(all)
     }
 
     /** 把路由组投影成模型条目；能力/上下文取自组内首位成员的模型元数据。 */
