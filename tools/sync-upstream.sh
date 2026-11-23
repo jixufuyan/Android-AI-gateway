@@ -53,6 +53,16 @@ gradlew
 gradlew.bat
 "
 
+# 这些文件冲突时取「上游版」，再由第 3 步自动把语法回退到本地工具链能吃的形式
+# （detekt.yml 就是典型：上游的规则内容要跟上，属性名要退回 1.23）
+THEIRS_THEN_ADAPT_FILES="
+config/detekt/detekt.yml
+"
+
+# 明确不自动补的依赖：上游新工具链（Kotlin 2.4 / haze 2.x）专属，
+# 补进来要么编译不过、要么与本地 1.x 冲突，必须人工决定。空格分隔，两端留空格。
+SKIP_DEPS=" dev.chrisbanes.haze:haze-blur "
+
 # ---------------------------------------------------------------------------
 step "0/7 环境检查"
 # ---------------------------------------------------------------------------
@@ -111,6 +121,13 @@ else
         fi
       fi
     done
+    for f in $THEIRS_THEN_ADAPT_FILES; do
+      if [ -n "$(git ls-files -u -- "$f" 2>/dev/null)" ]; then
+        if git checkout --theirs -- "$f" 2>/dev/null; then
+          git add -- "$f" && warn "取上游版（稍后自动回退语法）：$f"
+        fi
+      fi
+    done
   else
     ok "三方合并无冲突"
   fi
@@ -140,6 +157,7 @@ ADAPT_LOG=$(mktemp)
 
 # 3.1 detekt 2.0 属性名 → 1.23
 if [ -f config/detekt/detekt.yml ]; then
+  # 幂等：只有还留着 2.0 属性名时才动
   if grep -qE '^[[:space:]]*allowed(Lines|Complexity|Depth|Conditions):' config/detekt/detekt.yml 2>/dev/null ||
      grep -qE '^  UnusedPrivate(Function|Property):' config/detekt/detekt.yml 2>/dev/null; then
     sed -i -E 's/^([[:space:]]*)allowedLines:/\1threshold:/; s/^([[:space:]]*)allowedComplexity:/\1threshold:/; s/^([[:space:]]*)allowedDepth:/\1threshold:/; s/^([[:space:]]*)allowedConditions:/\1threshold:/' config/detekt/detekt.yml
@@ -169,6 +187,10 @@ sync_deps() {
       if grep -qF "$ga" "$local_file" 2>/dev/null || grep -qF "module = \"$ga\"" gradle/libs.versions.toml 2>/dev/null; then
         continue
       fi
+      # 新工具链专属依赖：不自动补，只提醒
+      case "$SKIP_DEPS" in
+        *" $ga "*) echo "跳过 $ga（本地工具链不兼容，需人工决定）" >> "$ADAPT_LOG"; continue ;;
+      esac
       echo "新增依赖 $ga → $local_file" >> "$ADAPT_LOG"
       awk -v note="    // [sync-upstream] 上游新增依赖，按字面量补入" -v dep="$line" '
         { buf[NR]=$0 }
