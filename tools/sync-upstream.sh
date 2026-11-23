@@ -192,7 +192,7 @@ sync_deps() {
         *" $ga "*) echo "跳过 $ga（本地工具链不兼容，需人工决定）" >> "$ADAPT_LOG"; continue ;;
       esac
       echo "新增依赖 $ga → $local_file" >> "$ADAPT_LOG"
-      awk -v note="    // [sync-upstream] 上游新增依赖，按字面量补入" -v dep="$line" '
+      awk -v note="    // [sync-upstream] 上游新增依赖，按字面量补入" -v dep="    $line" '
         { buf[NR]=$0 }
         END {
           last=0
