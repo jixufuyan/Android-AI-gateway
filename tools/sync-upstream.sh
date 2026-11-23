@@ -210,40 +210,14 @@ fi
 
 # 4.2 函数自递归：编译能过，一进组合就 StackOverflowError（AppSwitch 就是这么崩的）
 if command -v python3 >/dev/null 2>&1; then
-  REC=$(python3 - <<'PY'
-import re, glob
-bad = []
-for f in glob.glob('app/src/main/**/*.kt', recursive=True):
-    src = open(f, encoding='utf-8').read()
-    for m in re.finditer(r'\bfun\s+(\w+)\s*\(', src):
-        name = m.group(1)
-        i = src.find('{', m.end())
-        if i < 0:
-            continue
-        depth, j = 0, i
-        while j < len(src):
-            if src[j] == '{':
-                depth += 1
-            elif src[j] == '}':
-                depth -= 1
-                if depth == 0:
-                    break
-            j += 1
-        body = src[i:j]
-        body = re.sub(r'//[^\n]*', '', body)                 # 去行注释
-        body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)    # 去块注释
-        if re.search(r'(?<![A-Za-z0-9_.])' + re.escape(name) + r'\s*\(', body):
-            bad.append(f"{f}:{src[:m.start()].count(chr(10)) + 1}: {name}()")
-print("\n".join(bad))
-PY
-)
+  REC=$(python3 tools/recursion_scan.py app/src/main 2>/dev/null)
   if [ -n "$REC" ]; then
     warn "疑似自递归函数（自己调自己 → 无限递归）："
     echo "$REC" | sed 's/^/      /'
     FOUND=1
   fi
 else
-  warn "没有 python3，跳过自递归扫描（建议装一个：pkg install python）"
+  warn "没有 python3，跳过自递归扫描（装一个：pkg install python）"
 fi
 
 [ "$FOUND" = "0" ] && ok "未发现已知隐患"
