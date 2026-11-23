@@ -21,3 +21,6 @@ ui-proposals/
 
 # 本地会话数据（附件、缓存等），不属于仓库
 .aicode/
+
+# sync-upstream.sh 的临时快照（上游构建文件），不入库
+.sync-upstream/
