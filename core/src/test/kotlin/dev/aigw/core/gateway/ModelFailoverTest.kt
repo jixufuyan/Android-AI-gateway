@@ -143,6 +143,46 @@ class ModelFailoverTest {
     }
 
     @Test
+    fun `五种写法的 glm-5-3-flash 在真实候选列表里互相认成同款`() {
+        val engine = GatewayEngine(InMemoryKeyValueStore())
+        // 完全按用户给的真实 id 列：小浣熊 / 智谱 / 智谱清言 / WorkBuddy / Loomy
+        val ids = listOf(
+            "raccoon" to "sn-glm-5-3-flash",
+            "autoglm" to "glm-5.3-flash",
+            "chatglm" to "glm-5.3-flash",
+            "codebuddy" to "glm-5.3-flash",
+            "loomy" to "GLM-5.3-Flash",
+        )
+        ids.forEach { (pid, model) ->
+            engine.registry.register(TestProvider(pid, listOf(model)))
+            engine.pool.upsert(ProviderAccount(pid, "u-$pid", pid, "{}"))
+        }
+
+        // 从小浣熊的写法出发，候选里必须把其余四家全部收进来
+        val candidates = engine.resolveCandidateRoutes("raccoon/sn-glm-5-3-flash")
+        val hit = candidates.map { it.providerId }.toSet()
+        listOf("autoglm", "chatglm", "codebuddy", "loomy").forEach { pid ->
+            assertTrue(pid in hit, "$pid 应作为同款模型候选，实际：$candidates")
+        }
+        // 每家的 upstreamModel 必须是它自己的真实写法，不能把 sn- 原样发过去
+        assertEquals("glm-5.3-flash", candidates.first { it.providerId == "autoglm" }.model)
+        assertEquals("GLM-5.3-Flash", candidates.first { it.providerId == "loomy" }.model)
+    }
+
+    @Test
+    fun `不同档位不会被当成同款候选`() {
+        val engine = GatewayEngine(InMemoryKeyValueStore())
+        engine.registry.register(TestProvider("raccoon", listOf("sn-glm-5-3-flash")))
+        engine.registry.register(TestProvider("autoglm", listOf("glm-5.3-pro")))
+        engine.registry.register(TestProvider("chatglm", listOf("glm-5.3")))
+        listOf("raccoon", "autoglm", "chatglm").forEach {
+            engine.pool.upsert(ProviderAccount(it, "u-$it", it, "{}"))
+        }
+        val hit = engine.resolveCandidateRoutes("raccoon/sn-glm-5-3-flash").map { it.providerId }
+        assertEquals(listOf("raccoon"), hit, "pro / 无档位版不该被当成 flash 的替代：$hit")
+    }
+
+    @Test
     fun `raccoon 业务码额度耗尽时自动切到另一家供应商`() {
         val engine = GatewayEngine(InMemoryKeyValueStore())
         // lucid：模拟小浣熊（HTTP 200 + status.code=500001）

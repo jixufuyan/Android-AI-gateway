@@ -2066,7 +2066,6 @@ class GatewayEngine(
         seen.add(primary.providerId)
 
         val baseModel = primary.model.substringAfterLast('/').trim()
-        val normBase = normalizeModelKey(stripVendorPrefix(baseModel))
 
         for (provider in registry.all()) {
             if (provider.id in seen) continue
@@ -2074,7 +2073,7 @@ class GatewayEngine(
             // 备用供应商必须有可用账号
             if (pool.pick(provider.id) == null) continue
 
-            val matchedModel = findMatchingModel(provider, baseModel, normBase)
+            val matchedModel = findMatchingModel(provider, baseModel)
             if (matchedModel != null) {
                 candidates.add(Route(provider.id, matchedModel))
                 seen.add(provider.id)
@@ -2083,64 +2082,37 @@ class GatewayEngine(
         return candidates
     }
 
-    private fun normalizeModelKey(raw: String): String {
-        return raw.lowercase()
-            .replace("_", "-")
-            .replace(" ", "-")
-            .trim()
+    private fun findMatchingModel(provider: Provider, baseModel: String): String? {
+        if (provider is dev.aigw.core.provider.custom.CustomProvider) {
+            return bestMatch(provider.savedModels(), baseModel)
+        }
+        val catalog = runCatching { provider.listModels(pool.pick(provider.id)) }.getOrNull()
+            ?: return null
+        return bestMatch(catalog.models.map { it.id }, baseModel)
     }
 
     /**
-     * 剥掉模型名里「供应商私有前缀」，用于跨供应商认同一款模型。
+     * 在这家供应商的模型目录里找「同款模型」，返回它在这家的真实 id。
      *
-     * 小浣熊的模型 id 全带 `sn-`（`sn-deepseek-v4-1-flash-1017`），而别家同名模型叫
-     * `deepseek-v4-1-flash-1017`。不剥前缀时「同款模型」永远匹配不上，
-     * 故障转移自然找不到下一家可切——用户看到的就是「限流了也不换供应商」。
+     * 按可信度逐级放宽（见 [ModelNameKey]）：完全同名 → 规范化同名 → 剥版本修饰词 →
+     * 剥纯数字快照号。同一级别内取目录顺序靠前的（目录通常按厂商推荐序排列）。
+     *
+     * 关键是不能只比字符串：`sn-glm-5-3-flash` 与 `glm-5.3-flash` 要经过「规范化」才对得上
+     * （短横 ↔ 点、大小写、供应商前缀），而 `sn-deepseek-v4-1-flash-1017` 与
+     * `deepseek-v4-1-flash` 还要再剥一次快照号。
      */
-    private fun stripVendorPrefix(raw: String): String {
-        var name = raw.trim().lowercase().removePrefix("models/")
-        for (prefix in VENDOR_MODEL_PREFIXES) {
-            if (name.startsWith(prefix) && name.length > prefix.length) {
-                name = name.removePrefix(prefix)
-                break
-            }
+    private fun bestMatch(candidates: List<String>, baseModel: String): String? {
+        var bestTier = ModelNameKey.TIER_NONE
+        var best: String? = null
+        for (id in candidates) {
+            val tier = ModelNameKey.matchTier(id, baseModel)
+            if (tier == ModelNameKey.TIER_NONE || tier >= bestTier) continue
+            bestTier = tier
+            best = id
+            // 只有「完全相同」才敢提前收工：同级别里后出现的可能才是原文一致的那条
+            if (tier == ModelNameKey.TIER_EXACT) break
         }
-        return name
-    }
-
-    private fun findMatchingModel(provider: Provider, baseModel: String, normBase: String): String? {
-        if (provider is dev.aigw.core.provider.custom.CustomProvider) {
-            for (m in provider.savedModels()) {
-                if (normalizeModelKey(m) == normBase || m.equals(baseModel, ignoreCase = true) || isEquivalentModel(normalizeModelKey(m), normBase)) {
-                    return m
-                }
-            }
-            return null
-        }
-
-        val catalog = runCatching { provider.listModels(pool.pick(provider.id)) }.getOrNull()
-        if (catalog != null) {
-            for (m in catalog.models) {
-                val norm = normalizeModelKey(m.id)
-                if (norm == normBase || m.id.equals(baseModel, ignoreCase = true) || isEquivalentModel(norm, normBase)) {
-                    return m.id
-                }
-            }
-            // 第二轮：两边都剥掉供应商私有前缀（`sn-` 等）再比。
-            // 放在第一轮之后，保证「完全同名」永远优先；只有认不出时才放宽。
-            for (m in catalog.models) {
-                if (normalizeModelKey(stripVendorPrefix(m.id)) == normBase) return m.id
-            }
-        }
-        return null
-    }
-
-    private fun isEquivalentModel(a: String, b: String): Boolean {
-        if (a == b) return true
-        // 剥离版本或性能修饰符对比：如 deepseek-v4-pro vs deepseek-v4-flash, gemini-3.8-flash vs gemini-3.8-flash-high
-        val cleanA = a.removeSuffix("-high").removeSuffix("-low").removeSuffix("-preview")
-        val cleanB = b.removeSuffix("-high").removeSuffix("-low").removeSuffix("-preview")
-        return cleanA == cleanB
+        return best
     }
 
     /**
@@ -2203,6 +2175,10 @@ class GatewayEngine(
             lower in listOf("loomy", "iflytek", "spark", "xf") -> "loomy"
             // 小浣熊：官网模型自带 `sn-` 前缀，用户也常直接写供应商名当前缀
             lower in listOf("raccoon", "xiaohuanxiong", "xhx", "sn", "sensenova") -> "raccoon"
+            // 智谱系：autoglm 是「智谱 GLM 网页版」，chatglm 是「智谱清言」，
+            // 用户手写时常用 zhipu / bigmodel / glm 这类俗称
+            lower in listOf("zhipu", "bigmodel", "glm") -> "autoglm".takeIf { registry.get(it) != null }
+            lower in listOf("zhipuqingyan", "qingyan") -> "chatglm".takeIf { registry.get(it) != null }
             else -> if (lower.startsWith("custom:")) lower else null
         }
     }
@@ -2219,9 +2195,12 @@ class GatewayEngine(
             // 或者落到「多供应商时取第一个有账号的」——两种都会把请求发给错误的供应商，
             // 上游按参数错拒掉（CLIENT），网关于是直接报错、不换家。
             lower.startsWith("sn-") || lower.startsWith("raccoon-") -> "raccoon"
-            lower.startsWith("deepseek") || lower.startsWith("kimi") || lower.startsWith("minimax") || lower.startsWith("glm") || lower.startsWith("qwen") -> {
-                // 只认已启用且有账号的供应商，避免推导到一个被用户关掉的供应商
-                listOf("codebuddy", "trae").firstOrNull { providerSettings(it).enabled && pool.size(it) > 0 }
+            lower.startsWith("deepseek") || lower.startsWith("kimi") || lower.startsWith("minimax") ||
+                lower.startsWith("glm") || lower.startsWith("qwen") -> {
+                // 能跑这些模型的供应商不止一家，按「配置了账号的」优先，每家都试：
+                // 原来只认 codebuddy/trae，只登了智谱或小浣熊时会推导到一家根本没账号的供应商。
+                // 顺序按「前缀最贴模型名」的直觉排（GLM 系先看智谱两兄弟），最后才是 WorkBuddy/Trae。
+                MODEL_INFER_ORDER.firstOrNull { providerSettings(it).enabled && pool.size(it) > 0 }
             }
             else -> null
         }
@@ -2334,13 +2313,13 @@ class GatewayEngine(
         const val DAY_MILLIS = 24L * 3600 * 1000
 
         /**
-         * 供应商私有的模型名前缀：跨供应商认「同款模型」时先剥掉。
+         * 「deepseek / glm / qwen 等通用模型名不带供应商前缀」时的推导顺序。
          *
-         * 小浣熊的目录里模型全叫 `sn-xxx`（如 `sn-deepseek-v4-1-flash-1017`），
-         * 而同一款模型在别家叫 `deepseek-v4-1-flash-1017`。不剥前缀时两边名字永远对不上，
-         * 故障转移找不到候选，看起来就是「被上游限制了也不切供应商」。
+         * 这类模型名天下通用，任何一家都可能提供，原来只认 codebuddy/trae——
+         * 只登了智谱或小浣熊的用户，请求会被推导到一家根本没账号的供应商上。
+         * 顺序按「谁最可能提供这个模型名」排：GLM 系先看智谱两兄弟。
          */
-        val VENDOR_MODEL_PREFIXES = listOf("sn-", "raccoon-")
+        val MODEL_INFER_ORDER = listOf("autoglm", "chatglm", "raccoon", "codebuddy", "trae", "loomy")
 
         /** 详细日志单条上限：环形日志每条都全量展示，太长会淹没其它日志。 */
         const val VERBOSE_LINE_LIMIT = 1500
