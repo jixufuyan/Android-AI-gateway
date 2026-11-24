@@ -255,6 +255,27 @@ else
   warn "没有 python3，跳过自递归扫描（装一个：pkg install python）"
 fi
 
+# 4.3 二改补丁存活核对：上游重构会「安静地」把修补冲掉，编译照样过
+if [ -f tools/mod-guards.txt ]; then
+  GUARD_LOG=$(mktemp)
+  while IFS='|' read -r gpath gneed gnote; do
+    case "$gpath" in ''|'#'*) continue ;; esac
+    [ -n "$gneed" ] || continue
+    if [ ! -f "$gpath" ]; then
+      echo "补丁丢失：$gpath 不存在（$gnote）" >> "$GUARD_LOG"
+    elif ! grep -qF -- "$gneed" "$gpath" 2>/dev/null; then
+      echo "补丁可能被覆盖：$gpath 里找不到 [$gneed]（$gnote）" >> "$GUARD_LOG"
+    fi
+  done < tools/mod-guards.txt
+  if [ -s "$GUARD_LOG" ]; then
+    warn "二改补丁核对未通过（上游可能重构了同一段代码，合并把修补冲掉了）："
+    sed 's/^/      /' "$GUARD_LOG"
+    warn "逐条处理：要么把修补按新代码结构重做一遍，要么确认上游新写法等价后改 tools/mod-guards.txt 的特征串"
+    FOUND=1
+  fi
+  rm -f "$GUARD_LOG"
+fi
+
 [ "$FOUND" = "0" ] && ok "未发现已知隐患"
 [ "$FOUND" = "1" ] && warn "上面这些改完再提交（脚本不自动改业务代码）"
 
