@@ -2,6 +2,9 @@
 
 适用对象：本仓库的二改分支（`ide`）。上游 = `https://github.com/xibai6668/Android-AI-gateway`（默认远端名 `upstream`，分支 `main`）。
 
+> **当前二改基线**：2.39.2 / versionCode 241（工具链 AGP 8.13.0 / Kotlin 2.1.0 / Gradle 9.0.0 / compileSdk 36 / haze 1.6.10 / detekt 1.23.8）。
+> 每次同步前先确认这个基线没被上游悄悄抬高——脚本第 2 步会拦住。
+
 ---
 
 ## 一、日常用法（就这一条）
@@ -29,7 +32,7 @@ git remote add upstream https://github.com/xibai6668/Android-AI-gateway.git
 
 ---
 
-## 二、脚本按顺序做了 7 件事
+## 二、脚本按顺序做了 8 件事
 
 ```
 0 环境检查     工作区必须干净；若上次合并没收尾（MERGE_HEAD 还在）就接着处理，不重跑合并
@@ -39,7 +42,8 @@ git remote add upstream https://github.com/xibai6668/Android-AI-gateway.git
    ├─ detekt.yml 冲突     → 自动取上游版，第 3 步再把语法退回 1.23
    └─ 其它文件冲突        → 停下来列出清单，等你手工合并（脚本不替你决定业务逻辑）
 3 工具链适配   detekt 属性名回退；上游新增依赖按字面量补进本地构建脚本；不兼容依赖只提示不补
-4 隐患扫描     haze 2.x API 残留、函数自递归（这两类能编译，跑起来才炸）
+4 隐患扫描     ① haze 2.x API 残留 ② 函数自递归 ③ 二改补丁存活核对（tools/mod-guards.txt）
+               ——这三类都能编译、跑起来才炸，只能靠特征串查
 5 提交         merge 提交，消息带上游短哈希
 6 构建验证     ./gradlew :core:test :app:assembleDebug
 7 摘要         上游版本 / 合并前后 SHA / 改动统计 / 推送与回滚命令
@@ -69,8 +73,9 @@ gradle/wrapper/gradle-wrapper.jar                       gradlew / gradlew.bat
 | detekt 配置属性名 | **自动** | `allowedLines/allowedComplexity/allowedDepth/allowedConditions` → `threshold`；`UnusedPrivateFunction`+`UnusedPrivateProperty` → `UnusedPrivateMember`（幂等，已是 1.23 语法就不动） |
 | 上游新增第三方依赖 | **自动** | 以字面量补进 `app/core/cli` 的 `build.gradle.kts`，带 `// [sync-upstream]` 注释；已在版本目录里声明过的不重复补 |
 | 新工具链专属依赖 | **只提示** | `SKIP_DEPS` 名单（当前：`dev.chrisbanes.haze:haze-blur`）——这些是 Kotlin 2.4 / haze 2.x 专属，补进来要么编不过要么和 1.x 打架 |
-| haze 2.x API | **只提示** | 见下 |
-| 函数自递归 | **只提示** | 见下 |
+| haze 2.x API | **只提示** | 见 4.1 |
+| 函数自递归 | **只提示** | 见 4.2 |
+| 二改补丁是否还在 | **只提示** | 见 4.3 |
 
 ### 4.1 haze 2.x → 1.x（脚本会指出文件行号，改动要手做）
 
@@ -107,6 +112,37 @@ fun AppSwitch(...) {
 
 脚本每次跑都会扫 `app/src/main`（`tools/recursion_scan.py`）：块体做花括号配对、表达式体按语句边界取、import 同名符号（如 `Icon`）自动排除。`core` 里的 `walk()` / `write()` 是**刻意的递归**，所以扫描范围只放 `app`。
 
+### 4.3 二改补丁存活核对（`tools/mod-guards.txt`）
+
+> 这是最容易被忽略的一类回归：**上游重构了同一段代码 → 三方合并把你的修补安静地冲掉 → 编译过、启动正常 → 只有真跑到那个场景才发现又不工作了。**
+
+清单格式（一行一条）：
+
+```
+路径|必须存在的特征串|说明
+```
+
+- 路径不存在 → 报「补丁丢失」
+- 路径存在但找不到特征串 → 报「补丁可能被覆盖」
+
+当前覆盖的锚点：
+
+| 补丁 | 核对位置 | 特征串 |
+|---|---|---|
+| 小浣熊错误分类器 | `RaccoonErrors.kt` | `object RaccoonErrors` |
+| `classify()` 走分类器 | `RaccoonProvider.kt` | `RaccoonErrors.classifyHttp` |
+| HTTP 200 业务码分支 | `RaccoonProvider.kt` | `RaccoonErrors.classifyBusiness(bizCode` |
+| 流头预读 | `RaccoonProvider.kt` | `peekHead(stream)` |
+| 模型名归一化 | `ModelNameKey.kt` | `object ModelNameKey` |
+| 候选匹配走归一化 | `GatewayEngine.kt` | `ModelNameKey.matchTier` |
+| 通用模型名推导顺序 | `GatewayEngine.kt` | `MODEL_INFER_ORDER` |
+| 小浣熊前缀别名 | `GatewayEngine.kt` | `"raccoon", "xiaohuanxiong", "xhx", "sn", "sensenova"` |
+| 统一开关组件 | `Components.kt` | `fun AppSwitch(` / `androidx.compose.material3.Switch(` |
+| 二改四家供应商注册 | `ProviderBootstrap.kt` | `DumateProvider(` / `AutoglmProvider(` / `ChatglmProvider(` / `RaccoonProvider(` |
+| 首页局域网指标 | `GatewayEngine.kt` | `fun lanUrls` |
+
+**给二改加新的关键修复时，就在 `tools/mod-guards.txt` 里加一行。** 上游确实重写了那段、你确认新写法等价时，**改特征串，别删行**——删了就再也没人替你看着它了。
+
 ---
 
 ## 五、冲突处理手册
@@ -117,6 +153,7 @@ fun AppSwitch(...) {
 | `config/detekt/detekt.yml` | 脚本自动取上游 + 回退语法，不用管 |
 | `README.md` / `ARCHITECTURE.md` | 取上游（文档跟上游走最省心） |
 | `core/**`、`app/src/**` 业务代码 | **手工**：上游新功能 + 你的二改通常都要，冲突块就是两边动了同一段 |
+| `SYNC-UPSTREAM.md` / `tools/**` | **手工，一律保留本地**：这是二改自己的工具，上游没有 |
 
 手工合并流程：
 
@@ -147,6 +184,14 @@ git reset --hard <合并前 SHA>
 ./gradlew :app:assembleDebug     # 包名 dev.aigw.app.debug，与正式版可共存
 ```
 
+release 包签名（sandbox 里 aarch64 可用）：
+
+```bash
+/tmp/sdkhome/build-tools/36.0.0/apksigner sign --ks ~/.android/debug.keystore \
+  --ks-pass pass:android --key-pass pass:android --ks-key-alias androiddebugkey \
+  app/build/outputs/apk/release/app-release-unsigned.apk
+```
+
 ---
 
 ## 七、常见卡点
@@ -155,7 +200,9 @@ git reset --hard <合并前 SHA>
 - **卡在下载 Gradle 9.0.0**：首次要下 ~130MB，之后缓存在 `~/.gradle/wrapper/dists`。
 - **提示 build-tools 没装**：`app/build.gradle.kts` 里刻意**不写** `buildToolsVersion`，让 AGP 自己挑已装的那套，别手贱加回去。
 - **崩溃日志全是 `a.b.c`**：R8 混淆后的正常现象，用同版本 `app/build/outputs/mapping/release/mapping.txt` 还原：`tools/retrace.sh crash.log`。**每次发版都要把 mapping.txt 跟 APK 一起归档**，丢了就永远还原不了。
-- **能不能直接拿上游覆盖？** 不行。二改里有三家供应商（百度搭子 / 智谱 AutoGLM / 智谱清言）、应用内网页登录、Tab 隐藏、首页局域网指标、卡片化 UI、统一开关配色，覆盖即丢；只有三方合并能同时保住两边。
+- **能不能直接拿上游覆盖？** 不行。二改里有四家供应商（百度搭子 / 智谱 AutoGLM / 智谱清言 / 小浣熊网页登录）、应用内网页登录、Tab 隐藏、首页局域网指标、卡片化 UI、统一开关配色、模型名跨供应商归一化，覆盖即丢；只有三方合并能同时保住两边。
+- **`--dry-run` 之后发现 `upstream` 指向了本地路径**：之前拿本仓当假上游测脚本会改 `upstream` 的 URL，测完记得改回来：
+  `git remote set-url upstream https://github.com/xibai6668/Android-AI-gateway.git`
 
 ---
 
@@ -164,10 +211,14 @@ git reset --hard <合并前 SHA>
 - 判断是否有冲突**不能**写 `git ls-files -u | grep -q .`：脚本开了 `pipefail`，`grep -q` 提前退出会让管道返回 141，条件恒假。已改成 `[ -n "$(git ls-files -u -- 文件)" ]`。
 - 演练模式（`--dry-run`）也要照样解决工具链冲突，只是最后整单 `git merge --abort`，这样「剩余冲突」列表才是真的需要你处理的那些。
 - 补依赖时 `awk` 找的是文件**最后一个顶格 `}`**，所以别在 `dependencies {}` 之后再写顶格花括号的块。
+- 补丁核对用 `grep -F`（固定串，不当正则）：特征串里有 `(`、`"`、`|` 这类字符不会炸；`|` 作为字段分隔符时**特征串里不能再出现 `|`**，真要匹配它就拆成两条。
+- 核对清单里的路径是**相对仓库根**的（脚本已 `cd` 到根），别写绝对路径。
 
 ---
 
-## 九、实测记录（这四种上游更新场景都跑过）
+## 九、实测记录
+
+### 9.1 上游更新的四种场景（第一轮）
 
 | 场景 | 上游改动 | 脚本表现 |
 |---|---|---|
@@ -175,5 +226,17 @@ git reset --hard <合并前 SHA>
 | 依赖 + 配置 | 新增 `okio` 依赖、`detekt.yml` 用 2.0 属性名、改 `GatewayEngine.kt` | `app/build.gradle.kts` 冲突保留本地并补进 `okio`（带缩进）；`haze-blur` 被跳过并提示人工决定；`detekt.yml` 取上游后自动退回 `threshold` / `UnusedPrivateMember`；构建通过 |
 | 工具链冲突 | 改 `app/build.gradle.kts` 的 compileSdk / 版本号 | 一律保留本地版，不跟上游抬工具链 |
 | 业务代码冲突 | 改了二改也改过的 `lanUrls()` | 停下来列出冲突文件 → 手工合并 → `git add -A && tools/sync-upstream.sh --no-build` 续跑，正常提交 |
+
+### 9.2 补丁存活核对（第二轮，2.39.2 后新增）
+
+造了一个「上游把小浣熊业务码分支改回 `ErrorKind.CLIENT`」的场景：
+
+| 步骤 | 结果 |
+|---|---|
+| 全清单对照（当前仓库） | 12 条锚点全部命中，无输出 |
+| 删掉 `ModelNameKey.kt` + 把 `peekHead(stream)` 改成别的名字 | 分别报「补丁丢失」和「补丁可能被覆盖」，且**指出具体是哪条功能** |
+| 真跑 `sync-upstream.sh`（上游覆盖了业务码分支） | 三方合并**无冲突**、构建照过——正是这类回归最危险的地方，只能靠第 4 步的核对抓 |
+
+> 结论：上游重构同一段代码时 `git merge` 不会冲突，**补丁会静默消失**。这条核对是唯一防线。
 
 跑完后 `git log --oneline` 会多一条 `merge: 同步上游 <短哈希>`，随时能用摘要里给的 SHA 回滚。

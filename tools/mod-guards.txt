@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# 二改补丁存活清单（sync-upstream.sh 第 4 步逐条核对）
+#
+# 为什么要有这个文件：
+#   二改的修复大多是「在上游同一段代码上加一条分支/一个调用」。上游一旦重构这一段，
+#   三方合并会安静地把修补冲掉——**编译照样过、启动照样正常**，只有真跑到那个场景
+#   （比如小浣熊被限流）才会发现又不切家了。这类回归靠编译器抓不到，只能靠特征串核对。
+#
+# 格式：路径|必须存在的特征串|说明
+#   - 路径不存在 → 报「补丁丢失」
+#   - 路径存在但找不到特征串 → 报「补丁可能被上游覆盖」
+#   - 以 # 开头是注释，空行忽略
+#
+# 维护方式：给二改加一个新的关键修复，就在这里加一行。
+# 上游确实把这段重写了、你确认新写法等价时，改这一行的特征串，别删行。
+# ---------------------------------------------------------------------------
+
+# ---- 小浣熊：被上游限制后要能自动换家（2.39.1）----
+core/src/main/kotlin/dev/aigw/core/provider/raccoon/RaccoonErrors.kt|object RaccoonErrors|小浣熊错误分类器（业务码 → QUOTA/限流/凭证失效/模型不可用）
+core/src/main/kotlin/dev/aigw/core/provider/raccoon/RaccoonProvider.kt|RaccoonErrors.classifyHttp|classify 必须走分类器，不能退回「非 2xx 之外的都算 CLIENT」
+core/src/main/kotlin/dev/aigw/core/provider/raccoon/RaccoonProvider.kt|RaccoonErrors.classifyBusiness(bizCode|HTTP 200 + 业务码分支必须分类（归 CLIENT 就永不换家）
+core/src/main/kotlin/dev/aigw/core/provider/raccoon/RaccoonProvider.kt|peekHead(stream)|流头预读：转发前拦下业务错误帧，否则响应头已发、切不了家
+
+# ---- 模型名跨供应商归一化（2.39.2）----
+core/src/main/kotlin/dev/aigw/core/gateway/ModelNameKey.kt|object ModelNameKey|模型名归一化（点/短横/大小写/供应商前缀/快照号）
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|ModelNameKey.matchTier|候选匹配必须走归一化，不能退回字符串全等
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|MODEL_INFER_ORDER|通用模型名（deepseek/glm/qwen）推导顺序按账号实际配置挑
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|"raccoon", "xiaohuanxiong", "xhx", "sn", "sensenova"|小浣熊前缀别名（裸 sn- 模型名要能路由到 raccoon）
+
+# ---- 统一开关配色：函数内必须写全限定名（否则自递归崩溃）----
+app/src/main/kotlin/dev/aigw/app/ui/Components.kt|fun AppSwitch(|统一开关组件（关闭态圆点可见）
+app/src/main/kotlin/dev/aigw/app/ui/Components.kt|androidx.compose.material3.Switch(|AppSwitch 内部必须全限定名调用，裸 Switch( 被批量替换会变成自己调自己
+
+# ---- 二改供应商：三方合并时容易被上游覆盖掉注册 ----
+core/src/main/kotlin/dev/aigw/core/gateway/ProviderBootstrap.kt|DumateProvider(|百度搭子
+core/src/main/kotlin/dev/aigw/core/gateway/ProviderBootstrap.kt|AutoglmProvider(|智谱 AutoGLM
+core/src/main/kotlin/dev/aigw/core/gateway/ProviderBootstrap.kt|ChatglmProvider(|智谱清言
+core/src/main/kotlin/dev/aigw/core/gateway/ProviderBootstrap.kt|RaccoonProvider(|小浣熊网页登录
+
+# ---- 首页局域网指标（只 exposeLan 为 true 时才吐地址）----
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|fun lanUrls|首页局域网地址（受 exposeLan 开关控制）
