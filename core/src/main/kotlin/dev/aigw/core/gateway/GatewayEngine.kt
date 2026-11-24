@@ -2066,7 +2066,7 @@ class GatewayEngine(
         seen.add(primary.providerId)
 
         val baseModel = primary.model.substringAfterLast('/').trim()
-        val normBase = normalizeModelKey(baseModel)
+        val normBase = normalizeModelKey(stripVendorPrefix(baseModel))
 
         for (provider in registry.all()) {
             if (provider.id in seen) continue
@@ -2090,6 +2090,24 @@ class GatewayEngine(
             .trim()
     }
 
+    /**
+     * 剥掉模型名里「供应商私有前缀」，用于跨供应商认同一款模型。
+     *
+     * 小浣熊的模型 id 全带 `sn-`（`sn-deepseek-v4-1-flash-1017`），而别家同名模型叫
+     * `deepseek-v4-1-flash-1017`。不剥前缀时「同款模型」永远匹配不上，
+     * 故障转移自然找不到下一家可切——用户看到的就是「限流了也不换供应商」。
+     */
+    private fun stripVendorPrefix(raw: String): String {
+        var name = raw.trim().lowercase().removePrefix("models/")
+        for (prefix in VENDOR_MODEL_PREFIXES) {
+            if (name.startsWith(prefix) && name.length > prefix.length) {
+                name = name.removePrefix(prefix)
+                break
+            }
+        }
+        return name
+    }
+
     private fun findMatchingModel(provider: Provider, baseModel: String, normBase: String): String? {
         if (provider is dev.aigw.core.provider.custom.CustomProvider) {
             for (m in provider.savedModels()) {
@@ -2107,6 +2125,11 @@ class GatewayEngine(
                 if (norm == normBase || m.id.equals(baseModel, ignoreCase = true) || isEquivalentModel(norm, normBase)) {
                     return m.id
                 }
+            }
+            // 第二轮：两边都剥掉供应商私有前缀（`sn-` 等）再比。
+            // 放在第一轮之后，保证「完全同名」永远优先；只有认不出时才放宽。
+            for (m in catalog.models) {
+                if (normalizeModelKey(stripVendorPrefix(m.id)) == normBase) return m.id
             }
         }
         return null
@@ -2178,6 +2201,8 @@ class GatewayEngine(
             // 当成模型名发给上游，Trae 直接以 4001「param is invalid」拒绝）
             lower.startsWith("trae-") -> "trae"
             lower in listOf("loomy", "iflytek", "spark", "xf") -> "loomy"
+            // 小浣熊：官网模型自带 `sn-` 前缀，用户也常直接写供应商名当前缀
+            lower in listOf("raccoon", "xiaohuanxiong", "xhx", "sn", "sensenova") -> "raccoon"
             else -> if (lower.startsWith("custom:")) lower else null
         }
     }
@@ -2189,6 +2214,11 @@ class GatewayEngine(
             lower.startsWith("claude") && (lower.contains("thinking") || lower.contains("4-6") || lower.contains("sonnet") || lower.contains("opus")) -> "antigravity"
             lower.startsWith("doubao") || lower.startsWith("seed-") -> "trae"
             lower.startsWith("spark") || lower.contains("星火") -> "loomy"
+            // 小浣熊的模型 id 全部以 `sn-` 开头（sn-deepseek-v4-1-flash-1017 等），
+            // 没有这条会被下面的 deepseek 分支抢走推给 codebuddy/trae，
+            // 或者落到「多供应商时取第一个有账号的」——两种都会把请求发给错误的供应商，
+            // 上游按参数错拒掉（CLIENT），网关于是直接报错、不换家。
+            lower.startsWith("sn-") || lower.startsWith("raccoon-") -> "raccoon"
             lower.startsWith("deepseek") || lower.startsWith("kimi") || lower.startsWith("minimax") || lower.startsWith("glm") || lower.startsWith("qwen") -> {
                 // 只认已启用且有账号的供应商，避免推导到一个被用户关掉的供应商
                 listOf("codebuddy", "trae").firstOrNull { providerSettings(it).enabled && pool.size(it) > 0 }
@@ -2302,6 +2332,15 @@ class GatewayEngine(
 
     private companion object {
         const val DAY_MILLIS = 24L * 3600 * 1000
+
+        /**
+         * 供应商私有的模型名前缀：跨供应商认「同款模型」时先剥掉。
+         *
+         * 小浣熊的目录里模型全叫 `sn-xxx`（如 `sn-deepseek-v4-1-flash-1017`），
+         * 而同一款模型在别家叫 `deepseek-v4-1-flash-1017`。不剥前缀时两边名字永远对不上，
+         * 故障转移找不到候选，看起来就是「被上游限制了也不切供应商」。
+         */
+        val VENDOR_MODEL_PREFIXES = listOf("sn-", "raccoon-")
 
         /** 详细日志单条上限：环形日志每条都全量展示，太长会淹没其它日志。 */
         const val VERBOSE_LINE_LIMIT = 1500

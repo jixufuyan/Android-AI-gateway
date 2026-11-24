@@ -117,4 +117,73 @@ class ModelFailoverTest {
             server.stop()
         }
     }
+
+    @Test
+    fun `sn- 前缀模型名能路由到 raccoon 并跨供应商找到同款模型`() {
+        val engine = GatewayEngine(InMemoryKeyValueStore())
+        // raccoon：模型 id 带 sn- 前缀
+        val raccoon = TestProvider("raccoon", listOf("sn-deepseek-v4-1-flash-1017"))
+        // 另一家：同一款模型但不带前缀
+        val other = TestProvider("other", listOf("deepseek-v4-1-flash-1017"))
+        engine.registry.register(raccoon)
+        engine.registry.register(other)
+        engine.pool.upsert(ProviderAccount("raccoon", "u1", "小浣熊", "{}"))
+        engine.pool.upsert(ProviderAccount("other", "u2", "别家", "{}"))
+
+        // 1) 无前缀的裸模型名要推给 raccoon，而不是被 deepseek 分支抢给 codebuddy/trae
+        val route = engine.resolveRoute("sn-deepseek-v4-1-flash-1017")
+        assertEquals("raccoon", route?.providerId, "sn- 开头的模型应归属小浣熊")
+
+        // 2) 候选里必须出现别家的同款模型（剥掉 sn- 后同名），否则限流了永远切不过去
+        val candidates = engine.resolveCandidateRoutes("sn-deepseek-v4-1-flash-1017")
+        assertTrue(
+            candidates.any { it.providerId == "other" && it.model == "deepseek-v4-1-flash-1017" },
+            "候选应包含别家的同款模型：$candidates",
+        )
+    }
+
+    @Test
+    fun `raccoon 业务码额度耗尽时自动切到另一家供应商`() {
+        val engine = GatewayEngine(InMemoryKeyValueStore())
+        // lucid：模拟小浣熊（HTTP 200 + status.code=500001）
+        val faulty = object : Provider {
+            override val id = "raccoon"
+            override val displayName = "小浣熊"
+            override val authKind = AuthKind.NONE
+            override fun listModels(account: ProviderAccount?) =
+                ProviderModelCatalogView(models = listOf(ProviderModel("sn-deepseek-v4-1-flash-1017", "s")), fromFallback = false, error = "")
+            override fun resolveModel(requested: String) = requested
+            override fun classify(status: Int, body: String) = UpstreamError(ErrorKind.QUOTA, body)
+            override fun openChat(account: ProviderAccount, openAiBody: String) =
+                dev.aigw.core.provider.StreamFailureChatCall(
+                    200,
+                    UpstreamError(ErrorKind.QUOTA, "小浣熊额度/积分不足：quota exceeded"),
+                )
+        }
+        val backup = TestProvider("backup", listOf("sn-deepseek-v4-1-flash-1017"), responseContent = "来自备用的回复")
+        engine.registry.register(faulty)
+        engine.registry.register(backup)
+        engine.pool.upsert(ProviderAccount("raccoon", "u1", "小浣熊", "{}"))
+        engine.pool.upsert(ProviderAccount("backup", "u2", "备用", "{}"))
+
+        val server = GatewayHttpServer(engine, "127.0.0.1", 0)
+        server.start(0, true)
+        try {
+            val conn = URL("http://127.0.0.1:${server.listeningPort}/v1/chat/completions")
+                .openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.write(
+                """{"model":"raccoon/sn-deepseek-v4-1-flash-1017","messages":[{"role":"user","content":"hi"}]}"""
+                    .toByteArray(Charsets.UTF_8),
+            )
+            assertEquals(200, conn.responseCode, "额度耗尽应切到备用供应商")
+            val resp = conn.inputStream.bufferedReader().readText()
+            assertTrue(resp.contains("来自备用的回复"), resp)
+        } finally {
+            server.stop()
+        }
+    }
 }
+

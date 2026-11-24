@@ -158,9 +158,18 @@ class RaccoonProvider(
         val contentType = conn.contentType.orEmpty()
         val stream = conn.inputStream
         if (contentType.contains("event-stream", ignoreCase = true)) {
+            // 先在流头拦一次「HTTP 200 但流里第一帧就是业务错误」：小浣熊的额度耗尽/限流/
+            // 票据失效全是这个形态。等网关收到错误帧时响应头早已发给客户端、供应商也定了，
+            // 那时只能把错误原样吐给用户——自动切换必须发生在**转发之前**。
+            val head = peekHead(stream)
+            if (head.error != null) {
+                runCatching { head.stream.close() }
+                conn.disconnect()
+                return StreamFailureChatCall(status, head.error)
+            }
             val translator = RaccoonSseTranslator(newCompletionId(), model, nowMillis() / 1000)
             val transformed = LineTransformStream(
-                source = stream,
+                source = head.stream,
                 transform = { line -> translator.translate(line) },
                 onFinish = { translator.close() },
             )
@@ -188,8 +197,10 @@ class RaccoonProvider(
             )
         val bizCode = parsed.objOrNull("status")?.longOrNull("code") ?: 0L
         if (bizCode != 0L) {
-            val message = extractMessage(text).ifEmpty { "上游业务错误（code=$bizCode）" }
-            return StreamFailureChatCall(status, UpstreamError(ErrorKind.CLIENT, message))
+            // 关键：不能再一律给 CLIENT。CLIENT 在网关侧等于「参数错，直接报错不换家」，
+            // 而额度耗尽/限流/票据失效都走这条 HTTP 200 + 业务码的通道，
+            // 归成 CLIENT 就永远等不到自动切换供应商。
+            return StreamFailureChatCall(status, RaccoonErrors.classifyBusiness(bizCode, extractMessage(text)))
         }
         val completion = jsonToCompletion(parsed, model) ?: return StreamFailureChatCall(
             status,
@@ -211,11 +222,55 @@ class RaccoonProvider(
     private fun emptyUpstreamFailure(status: Int, contentType: String, raw: String): ChatCall = StreamFailureChatCall(
         status,
         UpstreamError(
-            ErrorKind.CLIENT,
+            // 空响应不是「参数错」：归 CLIENT 会让网关直接报错、不换家。
+            // 归 SERVER 才能让网关换号/换供应商重试，才有机会拿到一条真回复。
+            ErrorKind.SERVER,
             "上游返回了空响应（HTTP $status，Content-Type: ${contentType.ifEmpty { "—" }}" +
                 if (raw.isBlank()) "）" else "，片段：${raw.trim().take(120)}）",
         ),
     )
+
+    /**
+     * 读掉流头部的若干字节用于判断「首帧是不是业务错误」，并把读掉的字节接回去。
+     *
+     * 小浣熊的错误帧总是流里的第一条 `data:`；正常内容也是先来一个 chunk，同一批包里就能看到。
+     * 读到 `data:` 行即停，绝大多数情况只读一次，不增加首字延迟；
+     * 前几块只有心跳（`: ping`）时才多读两轮兜底。
+     */
+    private fun peekHead(source: java.io.InputStream): PeekedHead {
+        val peeked = java.io.ByteArrayOutputStream(PEEK_BYTES * 2)
+        val buffer = ByteArray(PEEK_BYTES)
+        var text = ""
+        var round = 0
+        while (round++ < PEEK_ROUNDS) {
+            val n = runCatching { source.read(buffer) }.getOrDefault(-1)
+            if (n <= 0) break
+            peeked.write(buffer, 0, n)
+            text = String(peeked.toByteArray(), StandardCharsets.UTF_8)
+            if (text.lineSequence().any { it.trim().startsWith("data:") }) break
+        }
+        if (peeked.size() == 0) return PeekedHead(source, null)
+        val bytes = peeked.toByteArray()
+        val firstData = text.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("data:") && !it.removePrefix("data:").trim().startsWith("[DONE]") }
+        val error = firstData?.let { line ->
+            val payload = line.removePrefix("data:").trim()
+            val obj = runCatching { JsonParser.parseString(payload).asJsonObject }.getOrNull()
+            // 只认外层 status.code（小浣熊的业务码位置）；裸 OpenAI 错误帧交给网关自己的解析
+            val code = obj?.objOrNull("status")?.longOrNull("code") ?: 0L
+            if (code != 0L) {
+                val message = obj?.objOrNull("status")?.stringOrNull("message").orEmpty()
+                RaccoonErrors.classifyBusiness(code, message)
+            } else {
+                null
+            }
+        }
+        return PeekedHead(java.io.SequenceInputStream(java.io.ByteArrayInputStream(bytes), source), error)
+    }
+
+    /** [stream] 已把探测读掉的字节接回开头；[error] 非空表示首帧即业务错误，不该继续转发。 */
+    private class PeekedHead(val stream: java.io.InputStream, val error: UpstreamError?)
 
     /** 把上游响应里的 choices 包成标准 `chat.completion`。 */
     private fun jsonToCompletion(envelope: JsonObject, model: String): String? {
@@ -272,18 +327,8 @@ class RaccoonProvider(
         }
     }
 
-    override fun classify(status: Int, body: String): UpstreamError {
-        val message = extractMessage(body).ifEmpty { "上游 HTTP $status" + bodySnippet(body) }
-        val kind = when {
-            status == 401 || status == 403 -> ErrorKind.SESSION_DEAD
-            status == 402 -> ErrorKind.QUOTA
-            status == 404 -> ErrorKind.NOT_FOUND
-            status == 429 -> ErrorKind.SOFT_RATE
-            status in 500..599 -> ErrorKind.SERVER
-            else -> ErrorKind.CLIENT
-        }
-        return UpstreamError(kind, message)
-    }
+    override fun classify(status: Int, body: String): UpstreamError =
+        RaccoonErrors.classifyHttp(status, body)
 
     // ------------------------------------------------------------------ 凭证刷新
 
@@ -755,6 +800,12 @@ class RaccoonProvider(
 
         private const val CONNECT_TIMEOUT_MS = 30_000
         private const val READ_TIMEOUT_MS = 300_000
+
+        /** 流头预读字节数：小浣熊的错误帧与正常首 chunk 都在第一个包里，一轮缓冲够用。 */
+        private const val PEEK_BYTES = 4096
+
+        /** 只读到第几个 `data:` 行为止的上限（前几块全是 `: ping` 心跳时才需要多读）。 */
+        private const val PEEK_ROUNDS = 3
     }
 }
 

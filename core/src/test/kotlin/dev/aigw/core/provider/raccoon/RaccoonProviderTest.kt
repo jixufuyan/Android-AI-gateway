@@ -105,6 +105,56 @@ class RaccoonProviderTest {
         assertEquals("authorization_verify_error", err.message)
     }
 
+    // ------------------------------------------------------- 业务码必须能触发换家
+
+    @Test
+    fun `HTTP 200 业务码额度耗尽必须归 QUOTA 而不是 CLIENT`() {
+        val err = RaccoonErrors.classifyBusiness(500001L, "quota exceeded")
+        assertEquals(ErrorKind.QUOTA, err.kind, "归 CLIENT 会让网关直接报错、绝不换供应商")
+        assertEquals("quota exceeded", err.message)
+        assertEquals(500001L, err.code)
+    }
+
+    @Test
+    fun `业务码未知时按消息关键词判额度与限流`() {
+        assertEquals(ErrorKind.QUOTA, RaccoonErrors.classifyBusiness(999001L, "积分不足，请充值").kind)
+        assertEquals(ErrorKind.SOFT_RATE, RaccoonErrors.classifyBusiness(999002L, "too many requests").kind)
+        assertEquals(ErrorKind.SESSION_DEAD, RaccoonErrors.classifyBusiness(200001L, "authorization_empty_error").kind)
+        assertEquals(ErrorKind.CLIENT, RaccoonErrors.classifyBusiness(999003L, "bad parameter").kind)
+    }
+
+    @Test
+    fun `流式响应首帧就是业务错误时返回可换家的失败而不是把错误转发出去`() {
+        val body = "data: {\"status\":{\"code\":500001,\"message\":\"quota exceeded\"}}\n\n"
+        withUpstream(contentType = "text/event-stream", body = body) { base ->
+            val call = RaccoonProvider(host = base).openChat(
+                account(),
+                """{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}""",
+            )
+            assertEquals(200, call.status)
+            assertNull(call.stream, "错误帧不该交给网关转发")
+            val failure = assertNotNull(call.failure, "必须报失败，否则网关不会切供应商")
+            assertEquals(ErrorKind.QUOTA, failure.kind)
+        }
+    }
+
+    @Test
+    fun `流头预读不能吞掉正常内容`() {
+        val body = ": ping\n\n" +
+            "data: {\"status\":{\"code\":0},\"data\":{\"id\":\"abc\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好\"}}]}}\n\n" +
+            "data: [DONE]\n\n"
+        withUpstream(contentType = "text/event-stream", body = body) { base ->
+            val call = RaccoonProvider(host = base).openChat(
+                account(),
+                """{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}""",
+            )
+            assertNull(call.failure, "正常流不该判成失败")
+            val text = assertNotNull(call.stream).bufferedReader().readText()
+            assertTrue(text.contains("\"content\":\"你好\""), "预读的字节必须接回流头：$text")
+            assertTrue(text.trimEnd().endsWith("data: [DONE]"), text)
+        }
+    }
+
     // ------------------------------------------------------------------ 请求体转换
 
     private fun prepare(body: String) = JsonParser.parseString(prepareRaccoonBody(body)).asJsonObject
