@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,7 +62,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
 
         SectionCard(enterIndex = 1) {
             SectionLabel("端口")
-            OutlinedTextField(
+            AppTextField(
                 value = port,
                 onValueChange = { port = it.filter(Char::isDigit).take(5) },
                 label = { Text("监听端口") },
@@ -92,7 +91,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
 
         SectionCard(enterIndex = 2) {
             SectionLabel("API Key")
-            OutlinedTextField(
+            AppTextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
                 label = { Text("网关鉴权 Key（留空表示不校验）") },
@@ -113,7 +112,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
 
         SectionCard(enterIndex = 3) {
             SectionLabel("CORS 白名单")
-            OutlinedTextField(
+            AppTextField(
                 value = corsOrigins,
                 onValueChange = { corsOrigins = it },
                 label = { Text("允许的网页来源，逗号分隔") },
@@ -169,7 +168,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(
+                AppTextField(
                     value = refreshSkew,
                     onValueChange = { refreshSkew = it.filter(Char::isDigit).take(4) },
                     label = { Text("预刷新窗口（秒）") },
@@ -178,7 +177,7 @@ fun ApiSettingsScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> 
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = maxRotate,
                     onValueChange = { maxRotate = it.filter(Char::isDigit).take(2) },
                     label = { Text("最多换号次数") },

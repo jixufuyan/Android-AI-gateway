@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonObject
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.ChoiceChip
 import dev.aigw.app.ui.OutlineActionButton
 import dev.aigw.app.ui.SectionCard
@@ -93,7 +93,7 @@ object DumateUi : ProviderUi {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = raw,
                         onValueChange = { raw = it },
                         modifier = Modifier.fillMaxWidth(),

@@ -12,7 +12,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.SectionCard
 import dev.aigw.app.ui.SectionLabel
 import dev.aigw.app.ui.providers.ProviderUi
@@ -76,7 +76,7 @@ object AutoglmUi : ProviderUi {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = "86",
                         onValueChange = {},
                         modifier = Modifier.width(88.dp),
@@ -84,7 +84,7 @@ object AutoglmUi : ProviderUi {
                         readOnly = true,
                         label = { Text("国家码") },
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = phone,
                         onValueChange = { phone = it.filter(Char::isDigit).take(11) },
                         modifier = Modifier.weight(1f),
@@ -93,7 +93,7 @@ object AutoglmUi : ProviderUi {
                         label = { Text("手机号") },
                     )
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = code,
                     onValueChange = { code = it.filter(Char::isDigit).take(6) },
                     modifier = Modifier.fillMaxWidth(),

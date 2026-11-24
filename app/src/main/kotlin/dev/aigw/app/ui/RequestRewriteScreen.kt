@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,7 +67,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            AppTextField(
                 value = aliasesText,
                 onValueChange = { aliasesText = it },
                 label = { Text("别名表") },
@@ -115,7 +114,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            AppTextField(
                 value = systemAppend,
                 onValueChange = { systemAppend = it },
                 label = { Text("追加内容") },
@@ -177,7 +176,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            AppTextField(
                 value = systemPrepend,
                 onValueChange = { systemPrepend = it },
                 label = { Text("注入内容") },

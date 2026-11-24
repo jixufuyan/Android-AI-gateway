@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.OutlineActionButton
 import dev.aigw.app.ui.SectionCard
 import dev.aigw.app.ui.SectionLabel
@@ -66,7 +66,7 @@ object ChatglmUi : ProviderUi {
                     text = if (expanded) "收起粘贴导入" else "粘贴凭证导入（兑底）",
                 ) { expanded = !expanded }
                 if (expanded) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = raw,
                         onValueChange = { raw = it },
                         modifier = Modifier.fillMaxWidth(),

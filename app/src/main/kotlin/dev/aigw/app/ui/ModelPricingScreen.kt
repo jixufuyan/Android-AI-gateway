@@ -15,7 +15,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -159,7 +158,7 @@ private fun PriceEditDialog(
         title = { Text(if (initialPrice == null) "添加模型价格" else "编辑模型价格") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = model,
                     onValueChange = { model = it },
                     label = { Text("模型名（可填裸名，对该模型的所有供应商生效）") },
@@ -209,7 +208,7 @@ private fun androidx.compose.foundation.layout.RowScope.PriceField(
     value: String,
     onChange: (String) -> Unit,
 ) {
-    OutlinedTextField(
+    AppTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },

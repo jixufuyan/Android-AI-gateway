@@ -15,7 +15,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon as MaterialIcon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonObject
 import kotlinx.coroutines.delay
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.ChoiceChip
 import dev.aigw.app.ui.OutlineActionButton
 import dev.aigw.app.ui.SectionCard
@@ -85,7 +85,7 @@ object LoomyUi : ProviderUi {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = ccode,
                         onValueChange = { value ->
                             // 国家码只留数字，最多 4 位（最长的是 +1 区外的三位码）
@@ -96,7 +96,7 @@ object LoomyUi : ProviderUi {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         label = { Text("国家码") },
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = phone,
                         onValueChange = { phone = it.filter(Char::isDigit).take(15) },
                         modifier = Modifier.weight(1f),
@@ -105,7 +105,7 @@ object LoomyUi : ProviderUi {
                         label = { Text("手机号") },
                     )
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = code,
                     onValueChange = { code = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -153,7 +153,7 @@ object LoomyUi : ProviderUi {
                 )
             }
 
-            OutlinedTextField(
+            AppTextField(
                 value = invite,
                 onValueChange = { invite = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -177,7 +177,7 @@ object LoomyUi : ProviderUi {
                 Text("兑换邀请码")
             }
 
-            OutlinedTextField(
+            AppTextField(
                 value = code,
                 onValueChange = { code = it },
                 modifier = Modifier.fillMaxWidth(),

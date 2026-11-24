@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -149,7 +148,7 @@ fun ProxyScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> Unit) 
 
         SectionCard(enterIndex = 2) {
             SectionLabel("不走代理的地址")
-            OutlinedTextField(
+            AppTextField(
                 value = excludedText,
                 onValueChange = { excludedText = it },
                 minLines = 3,
@@ -373,7 +372,7 @@ private fun ProxyProfileDialog(
         title = { Text(if (existing == null) "新建代理配置" else "编辑代理配置") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("名称（如：家里 / 公司）") },
@@ -389,28 +388,28 @@ private fun ProxyProfileDialog(
                         )
                     }
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = host,
                     onValueChange = { host = it.trim() },
                     label = { Text("代理地址") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = port,
                     onValueChange = { port = it.filter(Char::isDigit).take(5) },
                     label = { Text("端口") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = username,
                     onValueChange = { username = it },
                     label = { Text("用户名（可选）") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("密码（可选）") },

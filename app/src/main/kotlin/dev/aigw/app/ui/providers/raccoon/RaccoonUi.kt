@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonObject
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.ChoiceChip
 import dev.aigw.app.ui.OutlineActionButton
 import dev.aigw.app.ui.PointsBillRow
@@ -71,7 +71,7 @@ object RaccoonUi : ProviderUi {
                     text = if (expanded) "收起粘贴导入" else "粘贴回调链接导入",
                 ) { expanded = !expanded }
                 if (expanded) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = raw,
                         onValueChange = { raw = it },
                         modifier = Modifier.fillMaxWidth(),

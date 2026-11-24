@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.AccountCardShell
 import dev.aigw.app.ui.ChoiceChip
 import dev.aigw.app.ui.EmptyHint
@@ -93,14 +93,14 @@ class CustomUi(override val id: String) : ProviderUi {
             SectionLabel("添加账号")
             var nickname by remember { mutableStateOf("") }
             var apiKey by remember { mutableStateOf("") }
-            OutlinedTextField(
+            AppTextField(
                 value = nickname,
                 onValueChange = { nickname = it },
                 label = { Text("名称（可选，默认用供应商名）") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            AppTextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
                 label = { Text("API Key") },
@@ -213,7 +213,7 @@ class CustomUi(override val id: String) : ProviderUi {
                 )
             }
         }
-        OutlinedTextField(
+        AppTextField(
             value = models,
             onValueChange = onModelsChange,
             label = { Text("一行一个模型 id（随账号一起保存）") },
@@ -259,7 +259,7 @@ class CustomUi(override val id: String) : ProviderUi {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = search,
                     onValueChange = { search = it },
                     label = { Text("搜索模型") },
@@ -319,7 +319,7 @@ class CustomUi(override val id: String) : ProviderUi {
         var nickname by remember(account.uid, account.nickname) { mutableStateOf(account.nickname) }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            AppTextField(
                 value = nickname,
                 onValueChange = { nickname = it },
                 label = { Text("名称") },

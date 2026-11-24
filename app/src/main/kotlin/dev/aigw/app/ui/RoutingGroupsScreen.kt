@@ -15,7 +15,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -218,7 +217,7 @@ private fun RoutingGroupEditDialog(
         title = { Text(if (current == null) "新建路由组" else "编辑路由组") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = id,
                     onValueChange = { id = it },
                     label = { Text("组名（客户端填 group/<组名>）") },
@@ -226,7 +225,7 @@ private fun RoutingGroupEditDialog(
                     enabled = current == null,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("显示名（可留空）") },
@@ -267,7 +266,7 @@ private fun RoutingGroupEditDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            OutlinedTextField(
+                            AppTextField(
                                 value = member.priority.toString(),
                                 onValueChange = { text ->
                                     text.toIntOrNull()?.let { next ->
@@ -279,7 +278,7 @@ private fun RoutingGroupEditDialog(
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                             )
-                            OutlinedTextField(
+                            AppTextField(
                                 value = member.weight.toString(),
                                 onValueChange = { text ->
                                     text.toIntOrNull()?.let { next ->
@@ -416,7 +415,7 @@ private fun GroupRuleEditor(
             GroupAction("移除", onRemove)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedTextField(
+            AppTextField(
                 value = if (rule.minPromptTokens > 0) rule.minPromptTokens.toString() else "",
                 onValueChange = { text ->
                     onChange(rule.copy(minPromptTokens = text.toLongOrNull()?.coerceAtLeast(0) ?: 0L))
@@ -430,7 +429,7 @@ private fun GroupRuleEditor(
             ConditionChip("仅带图片", rule.requireImage) { onChange(rule.copy(requireImage = it)) }
             ConditionChip("仅压缩请求", rule.compactOnly) { onChange(rule.copy(compactOnly = it)) }
         }
-        OutlinedTextField(
+        AppTextField(
             value = rule.folders.joinToString("\n"),
             onValueChange = { text ->
                 onChange(rule.copy(folders = text.lines().map { it.trim() }.filter { it.isNotEmpty() }))
@@ -440,14 +439,14 @@ private fun GroupRuleEditor(
             modifier = Modifier.fillMaxWidth(),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            AppTextField(
                 value = minuteText(rule.startMinuteOfDay),
                 onValueChange = { onChange(rule.copy(startMinuteOfDay = parseMinute(it))) },
                 label = { Text("起始 HH:mm") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
-            OutlinedTextField(
+            AppTextField(
                 value = minuteText(rule.endMinuteOfDay),
                 onValueChange = { onChange(rule.copy(endMinuteOfDay = parseMinute(it))) },
                 label = { Text("结束 HH:mm") },

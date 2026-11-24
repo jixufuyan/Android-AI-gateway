@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -219,7 +218,7 @@ fun ProviderDetailScreen(
                 )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            OutlinedTextField(
+            AppTextField(
                 value = defaultModel,
                 onValueChange = { defaultModel = it },
                 label = { Text("默认模型") },

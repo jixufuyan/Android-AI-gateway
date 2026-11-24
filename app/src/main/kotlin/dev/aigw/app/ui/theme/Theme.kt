@@ -24,6 +24,16 @@ val GoldAccent = Color(0xFFD4A843)
 val GoldText = Color(0xFFB88A20)
 val HairlineBorder = Color(0xFFECECF0)
 
+/**
+ * 输入框未聚焦时的描边色（仅亮色主题用）。
+ *
+ * 为什么不能直接用 `colorScheme.outline`：它是 [HairlineBorder] #ECECF0，对白色卡片只有
+ * 1.18:1、对对话框底（surfaceContainerHigh #ECE6F0）只有 1.04:1——等于没有边框。
+ * 描边属于「非文本元素」，按 WCAG 1.4.11 至少要 3:1；#6E737C 对白卡 4.77:1、
+ * 对对话框底 3.89:1，两头都达标，同时比正文浅、不会喧宾夺主。
+ */
+val InputOutline = Color(0xFF6E737C)
+
 /** 告警琥珀：客户端中断的调用记录与日志 WARN 级别共用（非错误态，区别于 error 红）。 */
 val WarningAmber = Color(0xFFB26A00)
 

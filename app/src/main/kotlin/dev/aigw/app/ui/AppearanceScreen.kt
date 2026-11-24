@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -202,7 +201,7 @@ private fun HexField(
 ) {
     var text by remember(value) { mutableStateOf(value.removePrefix("#").uppercase()) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(
+        AppTextField(
             value = text,
             onValueChange = { input ->
                 val cleaned = input.filter { it.isLetterOrDigit() }.take(6).uppercase()

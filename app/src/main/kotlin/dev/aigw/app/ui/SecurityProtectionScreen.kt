@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -413,20 +412,20 @@ private fun PromptRewriteRuleDialog(
         title = { Text("新增替换规则") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("名称（可留空）") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = pattern,
                     onValueChange = { pattern = it },
                     label = { Text("要匹配的文本") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = replacement,
                     onValueChange = { replacement = it },
                     label = { Text("替换为") },
@@ -460,7 +459,7 @@ private fun PromptRewriteImportDialog(
         title = { Text("导入替换规则") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = rawText,
                     onValueChange = { rawText = it },
                     label = { Text("规则 JSON") },
@@ -854,7 +853,7 @@ private fun RateLimitEditDialog(
         title = { Text("修改账号限速参数") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = minText,
                     onValueChange = { minText = it.filter(Char::isDigit).take(5) },
                     label = { Text("最小间隔（毫秒）") },
@@ -862,7 +861,7 @@ private fun RateLimitEditDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = jitterText,
                     onValueChange = { jitterText = it.filter(Char::isDigit).take(5) },
                     label = { Text("抖动幅度（毫秒）") },

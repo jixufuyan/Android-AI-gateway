@@ -10,7 +10,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -447,7 +446,7 @@ private fun NumberField(
     allowDecimal: Boolean = false,
     onChange: (String) -> Unit,
 ) {
-    OutlinedTextField(
+    AppTextField(
         value = value,
         onValueChange = { input ->
             // 整数字段不放行小数点：避免「1.5」这类输入被 toIntOrNull 静默丢弃后落回默认值

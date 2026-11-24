@@ -16,7 +16,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -78,7 +77,7 @@ fun CustomProviderScreen(
     ) {
         SectionCard {
             SectionLabel("连接")
-            OutlinedTextField(
+            AppTextField(
                 value = name,
                 onValueChange = { value ->
                     name = value
@@ -89,7 +88,7 @@ fun CustomProviderScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            AppTextField(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
                 label = { Text("接口地址") },
@@ -106,7 +105,7 @@ fun CustomProviderScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            AppTextField(
                 value = apiKeysText,
                 onValueChange = { apiKeysText = it },
                 label = { Text("API Key") },
@@ -165,7 +164,7 @@ fun CustomProviderScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            OutlinedTextField(
+            AppTextField(
                 value = modelsText,
                 onValueChange = { modelsText = it },
                 label = { Text("模型 id") },
@@ -196,7 +195,7 @@ fun CustomProviderScreen(
                 )
             }
             if (advanced) {
-                OutlinedTextField(
+                AppTextField(
                     value = key,
                     onValueChange = {
                         key = it

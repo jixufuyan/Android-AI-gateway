@@ -23,7 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -369,7 +368,7 @@ private fun ClientKeyEditDialog(
         title = { Text(if (current == null) "新建密钥" else "编辑密钥") },
         text = {
             DialogContentColumn {
-                OutlinedTextField(
+                AppTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("名称") },
@@ -377,7 +376,7 @@ private fun ClientKeyEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (current == null) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = secret,
                         onValueChange = { secret = it },
                         label = { Text("自定义密钥（留空自动生成）") },
@@ -444,7 +443,7 @@ private fun ClientKeyEditDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = manualInput,
                         onValueChange = { manualInput = it },
                         label = { Text("手动添加") },
@@ -557,7 +556,7 @@ private fun LimitEditorRow(limit: KeyLimit, onChange: (KeyLimit) -> Unit, onRemo
             SmallAction("移除", onRemove)
         }
         if (limit.period == LimitPeriod.HOURS || limit.period == LimitPeriod.DAYS) {
-            OutlinedTextField(
+            AppTextField(
                 value = limit.n.toString(),
                 onValueChange = { text -> text.toIntOrNull()?.let { onChange(limit.copy(n = it.coerceAtLeast(1))) } },
                 label = { Text("每 N ${if (limit.period == LimitPeriod.HOURS) "小时" else "天"}") },
@@ -567,7 +566,7 @@ private fun LimitEditorRow(limit: KeyLimit, onChange: (KeyLimit) -> Unit, onRemo
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            AppTextField(
                 value = if (limit.maxTokens > 0) limit.maxTokens.toString() else "",
                 onValueChange = { text ->
                     onChange(limit.copy(maxTokens = text.toLongOrNull()?.coerceAtLeast(0) ?: 0L))
@@ -578,7 +577,7 @@ private fun LimitEditorRow(limit: KeyLimit, onChange: (KeyLimit) -> Unit, onRemo
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
-            OutlinedTextField(
+            AppTextField(
                 value = if (limit.maxCostMicros > 0) formatMicroUsd(limit.maxCostMicros) else "",
                 onValueChange = { text ->
                     val usd = text.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0

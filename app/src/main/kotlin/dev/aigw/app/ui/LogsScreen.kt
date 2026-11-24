@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -604,7 +603,7 @@ fun RetentionField(current: Int, onCommit: (Int) -> Unit) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    OutlinedTextField(
+    AppTextField(
         value = text,
         onValueChange = { input -> text = input.filter(Char::isDigit).take(4) },
         modifier = Modifier.fillMaxWidth(),
@@ -746,7 +745,7 @@ private fun LogCapacityField(current: Int, onCommit: (Int) -> Unit) {
         parsed in dev.aigw.core.gateway.GatewaySettings.MIN_REQUEST_LOG_CAPACITY..
         dev.aigw.core.gateway.GatewaySettings.MAX_REQUEST_LOG_CAPACITY
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        AppTextField(
             value = text,
             onValueChange = { input -> text = input.filter(Char::isDigit).take(4) },
             modifier = Modifier.fillMaxWidth(),

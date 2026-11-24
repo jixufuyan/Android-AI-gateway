@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon as MaterialIcon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonObject
+import dev.aigw.app.ui.AppTextField
 import dev.aigw.app.ui.AccountCardShell
 import dev.aigw.app.ui.ChoiceChip
 import dev.aigw.app.ui.OutlineActionButton
@@ -111,7 +111,7 @@ object TraeUi : ProviderUi {
                     text = if (expanded) "收起粘贴导入" else "粘贴凭证 JSON 导入",
                 ) { expanded = !expanded }
                 if (expanded) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = raw,
                         onValueChange = { raw = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -208,7 +208,7 @@ object TraeUi : ProviderUi {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChoiceChip("重新生成", false) { actions.onRegenerateDeviceId(id, status.uid) }
             }
-            OutlinedTextField(
+            AppTextField(
                 value = manual,
                 onValueChange = { manual = it },
                 modifier = Modifier.fillMaxWidth(),

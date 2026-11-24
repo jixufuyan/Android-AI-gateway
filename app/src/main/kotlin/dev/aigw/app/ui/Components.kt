@@ -34,7 +34,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchColors
 import androidx.compose.material3.SwitchDefaults
@@ -54,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -251,6 +251,110 @@ fun appSwitchColors(): SwitchColors {
         disabledUncheckedThumbColor = scheme.onSurfaceVariant.copy(alpha = 0.38f),
         disabledUncheckedTrackColor = scheme.surfaceVariant,
         disabledUncheckedBorderColor = scheme.onSurfaceVariant.copy(alpha = 0.18f),
+    )
+}
+
+/**
+ * 全局统一的输入框。
+ *
+ * 与 [AppSwitch] 同一类问题：Material3 的 `OutlinedTextField` 用 `colorScheme.outline`
+ * 当**未聚焦边框**色，而本项目亮色主题的 `outline` 是 #ECECF0 的发丝线色——
+ * 在白色卡片上勉强看得出，在对话框（surfaceContainerHigh）里就基本消失了，
+ * 用户看到的是「一个没有边框的输入框」，不知道自己能不能点。
+ *
+ * 这里把未聚焦态压到 `onSurfaceVariant`（亮色 #8A8F99），与关闭态开关圆点同一语义色：
+ * 所有「未激活」元素一眼可见，激活后仍是主题主色。
+ *
+ * ⚠️ 参数名与 [androidx.compose.material3.OutlinedTextField] 保持一致，
+ * 任意调用点把函数名换掉即可；调用方显式传 `colors` 时以调用方为准。
+ */
+@Composable
+fun AppTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    label: @Composable (() -> Unit)? = null,
+    placeholder: @Composable (() -> Unit)? = null,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    prefix: @Composable (() -> Unit)? = null,
+    suffix: @Composable (() -> Unit)? = null,
+    supportingText: @Composable (() -> Unit)? = null,
+    isError: Boolean = false,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
+        androidx.compose.ui.text.input.VisualTransformation.None,
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions =
+        androidx.compose.foundation.text.KeyboardOptions.Default,
+    keyboardActions: androidx.compose.foundation.text.KeyboardActions =
+        androidx.compose.foundation.text.KeyboardActions.Default,
+    singleLine: Boolean = false,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1,
+    textStyle: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
+    shape: androidx.compose.ui.graphics.Shape = androidx.compose.material3.OutlinedTextFieldDefaults.shape,
+    colors: androidx.compose.material3.TextFieldColors = appTextFieldColors(),
+    interactionSource: androidx.compose.foundation.interaction.MutableInteractionSource? = null,
+) {
+    // 必须写全限定名：本文件里 OutlinedTextField( 会被批量替换成 AppTextField(，写成裸调用会自己调自己
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        label = label,
+        placeholder = placeholder,
+        leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
+        prefix = prefix,
+        suffix = suffix,
+        supportingText = supportingText,
+        isError = isError,
+        visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        minLines = minLines,
+        textStyle = textStyle,
+        shape = shape,
+        colors = colors,
+        interactionSource = interactionSource,
+    )
+}
+
+/**
+ * [AppTextField] 的配色：未聚焦边框 / 标签用可见的中灰，聚焦后回到主题主色。
+ *
+ * 只改「看不清」的那几项，其余（错误态、禁用态、光标、选中高亮）仍用 Material3 默认值，
+ * 避免整套配色被手写覆盖后各页面观感漂移。
+ *
+ * 描边色分主题取值：#6E737C（亮，对白卡 4.8:1 / 对对话框底 3.9:1）与
+ * onSurfaceVariant（深，#8A8F99 对深色底 4.4:1）。深色主题的 `outline` 是 #2A2A2A，
+ * 同样是「几乎等于背景」的坑，所以这里两边都显式给色，不依赖 `outline`。
+ */
+@Composable
+fun appTextFieldColors(): androidx.compose.material3.TextFieldColors {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.background.luminance() < 0.5f
+    val border = if (dark) scheme.onSurfaceVariant else dev.aigw.app.ui.theme.InputOutline
+    val label = if (dark) scheme.onSurfaceVariant else dev.aigw.app.ui.theme.InputOutline
+    return androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        // 未聚焦：边框与标签都要看得见（默认取 outline，两种主题下都等于背景色）
+        unfocusedBorderColor = border,
+        unfocusedLabelColor = label,
+        unfocusedLeadingIconColor = scheme.onSurfaceVariant,
+        unfocusedTrailingIconColor = scheme.onSurfaceVariant,
+        unfocusedPlaceholderColor = scheme.onSurfaceVariant,
+        unfocusedSupportingTextColor = scheme.onSurfaceVariant,
+        // 聚焦：保持主题主色，与开关/按钮的激活色一致
+        focusedBorderColor = scheme.primary,
+        focusedLabelColor = scheme.primary,
+        // 禁用态：比未聚焦再淡一档，但轮廓仍要能看出「这里有个输入框」
+        disabledBorderColor = border.copy(alpha = 0.45f),
+        disabledLabelColor = label.copy(alpha = 0.55f),
     )
 }
 
@@ -847,7 +951,7 @@ fun <T> MultiSelectSheet(
                 }
             }
 
-            OutlinedTextField(
+            AppTextField(
                 value = keyword,
                 onValueChange = { keyword = it },
                 label = { Text("搜索") },

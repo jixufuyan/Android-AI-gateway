@@ -2,7 +2,7 @@
 
 适用对象：本仓库的二改分支（`ide`）。上游 = `https://github.com/xibai6668/Android-AI-gateway`（默认远端名 `upstream`，分支 `main`）。
 
-> **当前二改基线**：2.39.2 / versionCode 241（工具链 AGP 8.13.0 / Kotlin 2.1.0 / Gradle 9.0.0 / compileSdk 36 / haze 1.6.10 / detekt 1.23.8）。
+> **当前二改基线**：2.39.3 / versionCode 242（工具链 AGP 8.13.0 / Kotlin 2.1.0 / Gradle 9.0.0 / compileSdk 36 / haze 1.6.10 / detekt 1.23.8）。
 > 每次同步前先确认这个基线没被上游悄悄抬高——脚本第 2 步会拦住。
 
 ---
@@ -110,7 +110,22 @@ fun AppSwitch(...) {
 }
 ```
 
+**这条规则对所有「批量替换出来的包装组件」都成立**：`AppSwitch` / `AppTextField` 内部一律写全限定名。
+
 脚本每次跑都会扫 `app/src/main`（`tools/recursion_scan.py`）：块体做花括号配对、表达式体按语句边界取、import 同名符号（如 `Icon`）自动排除。`core` 里的 `walk()` / `write()` 是**刻意的递归**，所以扫描范围只放 `app`。
+
+### 4.2b 主题色别拿 `outline` 当边框（同一个坑踩过两次）
+
+本项目亮色的 `outline` = `HairlineBorder` `#ECECF0`，深色是 `#2A2A2A`——都是「几乎等于背景」的发丝线色。Material3 拿它当**未激活元素的边框**，于是：
+
+| 组件 | 症状 | 对比度 | 修法 |
+|---|---|---|---|
+| `Switch` 关闭态圆点 | 圆点糊在轨道上 | — | `AppSwitch` + `appSwitchColors()` |
+| `OutlinedTextField` 未聚焦边框 | **对话框里完全看不见边框** | 对白卡 1.18:1、对对话框底 1.04:1 | `AppTextField` + `appTextFieldColors()` + `InputOutline` |
+
+描边属于「非文本元素」，WCAG 1.4.11 要求 ≥ 3:1。现在用的 `InputOutline` = `#6E737C`：对白卡 **4.77:1**、对对话框底 **3.89:1**，两头都达标，又比正文浅，不喧宾夺主。
+
+> 以后凡是「默认取 `colorScheme.outline`」的组件（`OutlinedTextField`、`OutlinedButton`、`OutlinedCard` 等），**先算一遍对比度再决定用不用它**。
 
 ### 4.3 二改补丁存活核对（`tools/mod-guards.txt`）
 
@@ -125,7 +140,7 @@ fun AppSwitch(...) {
 - 路径不存在 → 报「补丁丢失」
 - 路径存在但找不到特征串 → 报「补丁可能被覆盖」
 
-当前覆盖的锚点：
+当前覆盖的锚点（19 条，按功能归 13 行）：
 
 | 补丁 | 核对位置 | 特征串 |
 |---|---|---|
@@ -138,6 +153,8 @@ fun AppSwitch(...) {
 | 通用模型名推导顺序 | `GatewayEngine.kt` | `MODEL_INFER_ORDER` |
 | 小浣熊前缀别名 | `GatewayEngine.kt` | `"raccoon", "xiaohuanxiong", "xhx", "sn", "sensenova"` |
 | 统一开关组件 | `Components.kt` | `fun AppSwitch(` / `androidx.compose.material3.Switch(` |
+| 统一输入框 | `Components.kt` | `fun AppTextField(` / `androidx.compose.material3.OutlinedTextField(` / `fun appTextFieldColors` |
+| 输入框描边色 | `Theme.kt` | `val InputOutline` |
 | 二改四家供应商注册 | `ProviderBootstrap.kt` | `DumateProvider(` / `AutoglmProvider(` / `ChatglmProvider(` / `RaccoonProvider(` |
 | 首页局域网指标 | `GatewayEngine.kt` | `fun lanUrls` |
 
@@ -233,10 +250,24 @@ release 包签名（sandbox 里 aarch64 可用）：
 
 | 步骤 | 结果 |
 |---|---|
-| 全清单对照（当前仓库） | 12 条锚点全部命中，无输出 |
+| 全清单对照（当前仓库） | 锚点全部命中，无输出 |
 | 删掉 `ModelNameKey.kt` + 把 `peekHead(stream)` 改成别的名字 | 分别报「补丁丢失」和「补丁可能被覆盖」，且**指出具体是哪条功能** |
 | 真跑 `sync-upstream.sh`（上游覆盖了业务码分支） | 三方合并**无冲突**、构建照过——正是这类回归最危险的地方，只能靠第 4 步的核对抓 |
 
 > 结论：上游重构同一段代码时 `git merge` 不会冲突，**补丁会静默消失**。这条核对是唯一防线。
+
+### 9.3 主题色对比度（第三轮，2.39.3）
+
+「并发与容错 → 修改并发参数」弹窗里，输入框未选中时边框看不见。实测对比度：
+
+| 颜色 | 用途 | 对白卡 `#FFFFFF` | 对对话框底 `#ECE6F0` |
+|---|---|---|---|
+| `#ECECF0` | 旧（`colorScheme.outline`） | 1.18:1 ❌ | **1.04:1 ❌ 等于没有** |
+| `#8A8F99` | 第一版方案（`onSurfaceVariant`） | 3.25:1 | 2.65:1 ❌ 仍不达标 |
+| **`#6E737C`** | **现在（`InputOutline`）** | **4.77:1 ✓** | **3.89:1 ✓** |
+
+深色主题同样有问题：`outline` 是 `#2A2A2A`，对深色对话框底 `#2B2930` 只有 **1.00:1**——完全消失。所以配色函数里按 `background.luminance()` 判断明暗，深色走 `onSurfaceVariant`（4.42:1）。
+
+替换范围：**68 处 `OutlinedTextField` 全量换成 `AppTextField`**（22 个文件），不只是出事的那一个弹窗——同一个坑不可能只在一个页面踩到。
 
 跑完后 `git log --oneline` 会多一条 `merge: 同步上游 <短哈希>`，随时能用摘要里给的 SHA 回滚。

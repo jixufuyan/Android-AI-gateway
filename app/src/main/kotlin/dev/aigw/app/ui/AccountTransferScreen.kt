@@ -14,7 +14,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -207,7 +206,7 @@ fun AccountTransferScreen(
             var pasteExpanded by remember { mutableStateOf(false) }
             val collapsible = importText.length > COLLAPSE_CHARS
             Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
+                AppTextField(
                     value = importText,
                     onValueChange = {
                         importText = it
