@@ -336,17 +336,43 @@ jobs:
       - name: 验证签名配置可读
         if: env.HAS_KEYSTORE == 'true'
         run: |
-          # 提前验证别名能被 keytool 认出来，失败立刻停，别等到打包 2 分钟才报错
-          ALIAS=$(grep '^keyAlias=' keystore.properties | cut -d= -f2-)
-          PASS=$(grep '^storePassword=' keystore.properties | cut -d= -f2-)
-          echo "检查别名：$ALIAS"
-          if keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -storepass "$PASS" 2>/dev/null | grep -q "Alias name: $(printf '%b' "$ALIAS")"; then
-            echo "✓ 别名在 keystore 里找到"
-          else
-            echo "::error::keystore 里找不到别名（可能中文编码问题）"
-            keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -storepass "$PASS" 2>&1 | head -20
-            exit 1
-          fi
+          # 用 Java 自己的 Properties 读一遍，这才是 Gradle 真实行为。
+          # 别用 shell 的 printf %b 去还原 \uXXXX —— 它不认，只认 \0NNN 八进制。
+          cat > /tmp/CheckKs.java <<'JAVA'
+          import java.util.Properties;
+          import java.io.*;
+          public class CheckKs {
+            public static void main(String[] a) throws Exception {
+              Properties p = new Properties();
+              try (InputStream in = new FileInputStream("keystore.properties")) {
+                p.load(in);   // ← 和 Gradle 读法完全一样（ISO-8859-1）
+              }
+              String alias = p.getProperty("keyAlias");
+              String pass  = p.getProperty("storePassword");
+              System.out.println("properties 里的 keyAlias = [" + alias + "]");
+
+              ProcessBuilder pb = new ProcessBuilder(
+                  "keytool", "-list", "-keystore", a[0], "-storepass", pass);
+              pb.redirectErrorStream(true);
+              Process proc = pb.start();
+              String out = new String(proc.getInputStream().readAllBytes(), "UTF-8");
+              proc.waitFor();
+
+              // keytool -list 不带 -v 时条目行长这样：
+              //   浅末年代_, Nov 25, 2026, PrivateKeyEntry,
+              // 所以按「别名 + 逗号」匹配，别找 "Alias name:"（那是 -v 才有的）
+              if (out.contains(alias + ",")) {
+                System.out.println("OK 别名在 keystore 里找到: " + alias);
+              } else {
+                System.out.println("ERROR keystore 里找不到别名 [" + alias + "]");
+                System.out.println(out);
+                System.exit(1);
+              }
+            }
+          }
+          JAVA
+          javac -d /tmp /tmp/CheckKs.java
+          java -cp /tmp CheckKs "$GITHUB_WORKSPACE/release.keystore"
 
       # --------------------------------------------------------
       # 检查 + 测试
