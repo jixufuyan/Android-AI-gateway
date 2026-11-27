@@ -159,6 +159,18 @@ log "合并完成：${BEFORE:0:8} → ${AFTER:0:8}"
 
 put "SYNC_RESULT=merged"
 put "SYNC_SHA=$AFTER"
+put "SYNC_UPSTREAM_SHA=$UP_SHA"
 put "SYNC_COUNT=$(git rev-list --count "$BEFORE..$AFTER")"
+
+# 上游这次带来的提交（给 Release 说明用）。
+# 只要应用相关目录的变化，和上游自己的发版日志口径一致。
+RANGE="$BEFORE..$UP_SHA"
+UP_LOG=$(git log "$RANGE" --no-merges --invert-grep --grep='^chore(release)' \
+          --pretty='- %s' -- app core 2>/dev/null || true)
+[ -n "$UP_LOG" ] || UP_LOG="- 无应用相关变化"
+
+put "SYNC_UPSTREAM_LOG<<UPSTREAM_LOG_EOF"
+printf '%s\n' "$UP_LOG" >> "$OUT"
+put "UPSTREAM_LOG_EOF"
 
 exit 10
