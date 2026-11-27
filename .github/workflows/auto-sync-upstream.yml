@@ -252,20 +252,16 @@ jobs:
           up_code = int(m_code.group(1))
           print('上游版本:', up_ver, '(', up_code, ')')
 
-          # versionName：只把 patch 位 +1（2.38.4 → 2.38.5）
-          # 预留 -xxx 后缀的情况，只改数字部分
+          # versionName：patch +1（2.38.4 → 2.38.5）
+          # versionCode：+1（234 → 235）
+          # 注意：只有自己装机时才这么干。若已有用户装了更高 code，
+          # 新包会 INSTALL_FAILED_VERSION_DOWNGRADE，必须卸载重装。
           parts = re.match(r'^(\d+)\.(\d+)\.(\d+)(.*)$', up_ver)
           if not parts:
               print('::error::上游版本号格式不认识:', up_ver); sys.exit(1)
           major, minor, patch, suffix = parts.groups()
           new_ver = '%s.%s.%d%s' % (major, minor, int(patch) + 1, suffix)
-
-          # versionCode：上游 × 10 + 1
-          # 为什么不直接用上游+1：
-          #   本地历史 versionCode 已经到 242，上游才 234。
-          #   若取 235 会「倒退」，已装 242 的设备报 INSTALL_FAILED_VERSION_DOWNGRADE。
-          # × 10 + 1 保证：永远大于上游、且随上游单调递增，不会再倒退。
-          new_code = up_code * 10 + 1
+          new_code = up_code + 1
 
           print('本次版本:', new_ver, '(', new_code, ')')
 
