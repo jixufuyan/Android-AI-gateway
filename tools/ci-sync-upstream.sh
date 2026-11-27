@@ -173,4 +173,9 @@ put "SYNC_UPSTREAM_LOG<<UPSTREAM_LOG_EOF"
 printf '%s\n' "$UP_LOG" >> "$OUT"
 put "UPSTREAM_LOG_EOF"
 
+# 标题里要显示「从哪到哪」。优先用上游最近一次 Release tag，没有就用短 sha。
+UP_REF=$(git describe --tags --abbrev=0 "$BEFORE" 2>/dev/null \
+         || git rev-parse --short "$BEFORE" 2>/dev/null || echo "上游")
+put "SYNC_UPSTREAM_REF=$UP_REF"
+
 exit 10
