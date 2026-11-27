@@ -48,6 +48,8 @@ jobs:
       count: ${{ steps.sync.outputs.SYNC_COUNT }}
       conflicts: ${{ steps.sync.outputs.SYNC_CONFLICTS }}
       exit_code: ${{ steps.sync.outputs.exit_code }}
+      upstream_log: ${{ steps.sync.outputs.SYNC_UPSTREAM_LOG }}
+      upstream_ref: ${{ steps.sync.outputs.SYNC_UPSTREAM_REF }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -414,28 +416,33 @@ jobs:
           path: ${{ env.ARTIFACT }}
           retention-days: 14
 
+      - name: 生成发版说明
+        id: notes
+        env:
+          UPSTREAM_LOG: ${{ needs.sync.outputs.upstream_log }}
+          UPSTREAM_REF: ${{ needs.sync.outputs.upstream_ref }}
+          MY_VER: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "body<<NOTES_EOF"
+            echo "## 更新内容（${UPSTREAM_REF:-上游} → v${MY_VER}）"
+            echo ""
+            if [ -n "$UPSTREAM_LOG" ]; then
+              printf '%s\n' "$UPSTREAM_LOG"
+            else
+              echo "- 无应用相关变化"
+            fi
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: 发 Release（仅 release 包）
         if: steps.build.outputs.kind == 'release'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.version.outputs.version }}-auto
+          tag_name: v${{ steps.version.outputs.version }}
           target_commitish: ${{ needs.sync.outputs.sha || github.sha }}
-          name: v${{ steps.version.outputs.version }}（自动同步）
-          body: |
-            ## 自动构建
-
-            由上游同步工作流自动触发。
-
-            | 项 | 值 |
-            |---|---|
-            | 上游版本 | `${{ steps.version.outputs.upstream_version }}` (${{ steps.version.outputs.upstream_code }}) |
-            | 本版版本 | `${{ steps.version.outputs.version }}` (${{ steps.version.outputs.code }}) |
-            | 同步提交 | `${{ needs.sync.outputs.sha }}` |
-            | 合并提交数 | ${{ needs.sync.outputs.count }} |
-
-            版本号规则：`versionName` = 上游 patch + 1，`versionCode` = 上游 code × 10 + 1。
-
-            > 本包来自 `ide` 分支（二改版），不是官方原版。
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
           files: ${{ env.ARTIFACT }}
 
       - name: 构建结果汇总
