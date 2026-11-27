@@ -5,7 +5,8 @@ name: Auto Sync Upstream & Build
 #   2. 有就自动合并（工具链冲突保留本地版，其它冲突则放弃并通知）
 #   3. 核对二改补丁没被上游悄悄覆盖
 #   4. 推回 ide 分支
-#   5. 合并成功就自动构建 APK 并发 Release
+#   5. 版本号按「上游 patch + 1」计算，versionCode 按「上游 code × 10 + 1」
+#   6. 构建 APK 并发 Release
 #
 # 手动触发时可以选「只检查不合并」，方便先看看会发生什么。
 
@@ -214,6 +215,87 @@ jobs:
           # 注意：二改锁定 9.0.0，不要跟上游的 9.9.1
           gradle-version: '9.0.0'
 
+      # --------------------------------------------------------
+      # 版本号：只比上游大一点点
+      # --------------------------------------------------------
+      - name: 计算并写入版本号
+        id: version
+        env:
+          UPSTREAM_REPO: https://github.com/xibai6668/Android-AI-gateway.git
+        run: |
+          set -e
+
+          # 取上游最新版本号
+          git remote add upstream "$UPSTREAM_REPO" 2>/dev/null \
+            || git remote set-url upstream "$UPSTREAM_REPO"
+          git fetch --no-tags upstream main || true
+
+          python3 - <<'PY'
+          import re, subprocess, os, sys
+
+          def upstream_text(path):
+              return subprocess.run(
+                  ['git', 'show', 'upstream/main:' + path],
+                  capture_output=True, text=True
+              ).stdout
+
+          txt = upstream_text('app/build.gradle.kts') or upstream_text('app/build.gradle')
+          if not txt:
+              print('::error::读不到上游 build.gradle.kts'); sys.exit(1)
+
+          m_ver = re.search(r'versionName\s*=\s*["\']([^"\']+)["\']', txt)
+          m_code = re.search(r'versionCode\s*=\s*(\d+)', txt)
+          if not m_ver or not m_code:
+              print('::error::上游没找到 versionName/versionCode'); sys.exit(1)
+
+          up_ver = m_ver.group(1)
+          up_code = int(m_code.group(1))
+          print('上游版本:', up_ver, '(', up_code, ')')
+
+          # versionName：只把 patch 位 +1（2.38.4 → 2.38.5）
+          # 预留 -xxx 后缀的情况，只改数字部分
+          parts = re.match(r'^(\d+)\.(\d+)\.(\d+)(.*)$', up_ver)
+          if not parts:
+              print('::error::上游版本号格式不认识:', up_ver); sys.exit(1)
+          major, minor, patch, suffix = parts.groups()
+          new_ver = '%s.%s.%d%s' % (major, minor, int(patch) + 1, suffix)
+
+          # versionCode：上游 × 10 + 1
+          # 为什么不直接用上游+1：
+          #   本地历史 versionCode 已经到 242，上游才 234。
+          #   若取 235 会「倒退」，已装 242 的设备报 INSTALL_FAILED_VERSION_DOWNGRADE。
+          # × 10 + 1 保证：永远大于上游、且随上游单调递增，不会再倒退。
+          new_code = up_code * 10 + 1
+
+          print('本次版本:', new_ver, '(', new_code, ')')
+
+          # 写回本地文件
+          path = 'app/build.gradle.kts'
+          if not os.path.exists(path):
+              path = 'app/build.gradle'
+          src = open(path, encoding='utf-8').read()
+
+          src2 = re.sub(r'(versionName\s*=\s*)["\'][^"\']+["\']',
+                        lambda m: m.group(1) + '"%s"' % new_ver, src, count=1)
+          src2 = re.sub(r'(versionCode\s*=\s*)\d+',
+                        lambda m: m.group(1) + str(new_code), src2, count=1)
+
+          if src2 == src:
+              print('::warning::版本号没变化（可能上游没升版）')
+          open(path, 'w', encoding='utf-8').write(src2)
+
+          # 给后续步骤用
+          out = os.environ.get('GITHUB_OUTPUT', '/dev/null')
+          with open(out, 'a') as f:
+              f.write('version=%s\n' % new_ver)
+              f.write('code=%s\n' % new_code)
+              f.write('upstream_version=%s\n' % up_ver)
+              f.write('upstream_code=%s\n' % up_code)
+          PY
+
+      # --------------------------------------------------------
+      # 签名
+      # --------------------------------------------------------
       - name: 还原 release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -233,19 +315,55 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          cat > keystore.properties <<EOF
-          storeFile=$GITHUB_WORKSPACE/release.keystore
-          storePassword=$KEYSTORE_PASSWORD
-          keyAlias=$KEY_ALIAS
-          keyPassword=$KEY_PASSWORD
-          EOF
+          # Java 的 Properties.load(InputStream) 按 ISO-8859-1 解码，
+          # 直接把中文别名写进去会变成乱码（"浅末年代_" → "æµæ«å¹´ä»£_"），
+          # 打包时报 No key with alias ... found in keystore。
+          # 解决：别名里所有非 ASCII 字符都写成 \uXXXX 转义，Java 能正确还原。
+          python3 - <<'PY'
+          import os
+          alias = os.environ['KEY_ALIAS']
+          esc = ''.join(
+              c if ord(c) < 128 else '\\u%04X' % ord(c)
+              for c in alias
+          )
+          lines = [
+              'storeFile=%s/release.keystore' % os.environ['GITHUB_WORKSPACE'],
+              'storePassword=%s' % os.environ['KEYSTORE_PASSWORD'],
+              'keyAlias=%s' % esc,
+              'keyPassword=%s' % os.environ['KEY_PASSWORD'],
+          ]
+          open('keystore.properties', 'w', encoding='latin-1').write('\n'.join(lines) + '\n')
+          print('keystore.properties 已生成')
+          print('keyAlias=' + esc)
+          PY
 
+      - name: 验证签名配置可读
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          # 提前验证别名能被 keytool 认出来，失败立刻停，别等到打包 2 分钟才报错
+          ALIAS=$(grep '^keyAlias=' keystore.properties | cut -d= -f2-)
+          PASS=$(grep '^storePassword=' keystore.properties | cut -d= -f2-)
+          echo "检查别名：$ALIAS"
+          if keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -storepass "$PASS" 2>/dev/null | grep -q "Alias name: $(printf '%b' "$ALIAS")"; then
+            echo "✓ 别名在 keystore 里找到"
+          else
+            echo "::error::keystore 里找不到别名（可能中文编码问题）"
+            keytool -list -keystore "$GITHUB_WORKSPACE/release.keystore" -storepass "$PASS" 2>&1 | head -20
+            exit 1
+          fi
+
+      # --------------------------------------------------------
+      # 检查 + 测试
+      # --------------------------------------------------------
       - name: 静态检查
         run: gradle :core:detekt --console=plain
 
       - name: 单元测试
         run: gradle :core:test --console=plain
 
+      # --------------------------------------------------------
+      # 打包
+      # --------------------------------------------------------
       - name: 打包
         id: build
         run: |
@@ -259,21 +377,13 @@ jobs:
             echo "kind=debug" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 读取版本号
-        id: version
-        run: |
-          VERSION=$(grep -m1 'versionName' app/build.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
-          CODE=$(grep -m1 'versionCode' app/build.gradle.kts | grep -oE '[0-9]+')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "code=$CODE" >> "$GITHUB_OUTPUT"
-          echo "本次版本：$VERSION ($CODE)"
-
       - name: 重命名产物
         run: |
           EXT=$(basename "${{ steps.build.outputs.apk }}" | sed 's/.*\.//')
           NAME="ai-gateway-${{ steps.version.outputs.version }}-${{ steps.build.outputs.kind }}.$EXT"
           cp "${{ steps.build.outputs.apk }}" "$NAME"
           echo "ARTIFACT=$NAME" >> "$GITHUB_ENV"
+          echo "产物：$NAME"
 
       - name: 上传临时产物
         uses: actions/upload-artifact@v5
@@ -294,9 +404,14 @@ jobs:
 
             由上游同步工作流自动触发。
 
-            - 上游：`xibai6668/Android-AI-gateway`
-            - 同步提交：`${{ needs.sync.outputs.sha }}`
-            - 合并提交数：${{ needs.sync.outputs.count }}
+            | 项 | 值 |
+            |---|---|
+            | 上游版本 | `${{ steps.version.outputs.upstream_version }}` (${{ steps.version.outputs.upstream_code }}) |
+            | 本版版本 | `${{ steps.version.outputs.version }}` (${{ steps.version.outputs.code }}) |
+            | 同步提交 | `${{ needs.sync.outputs.sha }}` |
+            | 合并提交数 | ${{ needs.sync.outputs.count }} |
+
+            版本号规则：`versionName` = 上游 patch + 1，`versionCode` = 上游 code × 10 + 1。
 
             > 本包来自 `ide` 分支（二改版），不是官方原版。
           files: ${{ env.ARTIFACT }}
@@ -306,7 +421,11 @@ jobs:
         run: |
           {
             echo "### 构建结果"
-            echo "- 版本：\`${{ steps.version.outputs.version }}\` (${{ steps.version.outputs.code }})"
-            echo "- 类型：\`${{ steps.build.outputs.kind }}\`"
-            echo "- 产物：\`${{ env.ARTIFACT }}\`"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 上游版本 | \`${{ steps.version.outputs.upstream_version }}\` (${{ steps.version.outputs.upstream_code }}) |"
+            echo "| 本版版本 | \`${{ steps.version.outputs.version }}\` (${{ steps.version.outputs.code }}) |"
+            echo "| 类型 | \`${{ steps.build.outputs.kind }}\` |"
+            echo "| 产物 | \`${{ env.ARTIFACT }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
