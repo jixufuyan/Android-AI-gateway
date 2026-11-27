@@ -157,65 +157,6 @@ class ThinkTagsStripMiddleware : GatewayMiddleware {
 }
 
 /**
- * 注入 system 提示词：把**用户自定义**的文本放到第一条 system 消息的最前面；
- * 没有 system 消息时新建一条并置于首位。
- *
- * <p>与 [SystemPromptAppendMiddleware] 的区别：注入必须落在对话开头。
- * 追加到末尾的指令容易被后面几轮的用户指令、工具结果覆盖；而这类前置载荷
- * （破甲 / 角色设定）正是靠「排在最前」生效的。</p>
- *
- * <p>本项目**不内置任何载荷**：文本完全由用户在设置页填写，空串等于不注入。</p>
- */
-class SystemPromptPrependMiddleware(private val text: String) : GatewayMiddleware {
-    override val id: String get() = ID
-
-    override fun onRequest(context: MiddlewareContext, body: JsonObject): JsonObject {
-        if (text.isBlank()) return body
-        val messages = body.arrayOrNull("messages") ?: return body
-        val injected = text.trim()
-        val copy = JsonArray()
-        var done = false
-        for (element in messages) {
-            val message = element.takeIf { it.isJsonObject }?.asJsonObject
-            val role = message?.stringOrNull("role").orEmpty()
-            // content 是多模态数组时只处理字符串形态（硬改数组会破坏 part 结构）
-            val content = message?.stringOrNull("content")
-            if (!done && message != null && content != null &&
-                (role == "system" || role == "developer")
-            ) {
-                done = true
-                copy.add(JsonObject().apply {
-                    message.entrySet().forEach { (key, value) -> add(key, value) }
-                    addProperty("content", injected + "\n\n" + content)
-                })
-                continue
-            }
-            copy.add(element)
-        }
-        val out = JsonObject().apply {
-            body.entrySet().forEach { (key, value) -> add(key, value) }
-        }
-        if (!done) {
-            val head = JsonObject().apply {
-                addProperty("role", "system")
-                addProperty("content", injected)
-            }
-            val withHead = JsonArray()
-            withHead.add(head)
-            for (element in copy) withHead.add(element)
-            out.add("messages", withHead)
-        } else {
-            out.add("messages", copy)
-        }
-        return out
-    }
-
-    companion object {
-        const val ID = "system-prompt-prepend"
-    }
-}
-
-/**
  * 中间件链：按注册顺序依次执行。
  *
  * 铁律：**单个中间件抛异常就跳过它继续下一个**。钩子是可选增强，
@@ -251,19 +192,20 @@ class MiddlewareChain(private val middlewares: List<GatewayMiddleware> = emptyLi
     /**
      * 按用户配置重建一条链。
      *
-     * 四种内置改写，均来自「请求改写」设置页；顺序固定为
-     * 别名 → system 前置注入 → system 追加 → 思考标签清理：
-     * 别名先定模型；前置注入必须排在追加之前，否则注入文本会被追加内容顶到中间。
+     * 三项内置改写，均来自「请求改写」设置页；顺序固定为
+     * 别名 → system 追加 → 思考标签清理。
+     *
+     * 前置注入（原 SystemPromptPrependMiddleware）已删除。实测三个模型
+     * （deepseek-v4.1-flash / kimi-k3 / gpt-5.4）里它全部静默失效——拼在原 system 前面
+     * 会被后文压住，效果比不开还弱，且从界面完全看不出没生效。生效强的是末尾追加
+     * （近因效应，紧贴 user 消息），所以只保留追加一个入口。
      */
     companion object {
         const val SETTINGS_KEY = "settings/middleware.json"
 
         fun build(settings: MiddlewareSettings): MiddlewareChain {
-            val list = ArrayList<GatewayMiddleware>(4)
+            val list = ArrayList<GatewayMiddleware>(3)
             if (settings.aliases.isNotEmpty()) list.add(ModelAliasMiddleware(settings.aliases))
-            if (settings.systemPromptPrependEnabled && settings.systemPromptPrepend.isNotBlank()) {
-                list.add(SystemPromptPrependMiddleware(settings.systemPromptPrepend))
-            }
             if (settings.systemPromptAppendEnabled && settings.systemPromptAppend.isNotBlank()) {
                 list.add(SystemPromptAppendMiddleware(settings.systemPromptAppend))
             }
@@ -282,18 +224,15 @@ data class MiddlewareSettings(
     /** 追加总开关：默认关闭。开启必须同时满足「有内容」，见 RequestRewriteScreen 的拦截。 */
     val systemPromptAppendEnabled: Boolean = false,
     /**
-     * 注入到 system 提示词**最前面**的文本；空串表示不注入。
-     *
-     * 完全由用户填写（本应用不内置任何载荷），对应「破甲 / 角色设定」这类必须排在开头的场景。
+     * 已废弃：前置注入已从中间件链移除（实测静默失效，见 MiddlewareChain.build 注释）。
+     * 字段保留仅为不丢掉老用户已填的文本；不参与任何请求改写，界面也不再展示。
      */
     val systemPromptPrepend: String = "",
     /** 是否从 assistant 消息里剥掉 `<think>…</think>`。 */
     val stripThinkTags: Boolean = false,
-    /** 注入提示词总开关：默认关闭。开启必须同时满足「有内容」，见 RequestRewriteScreen 的拦截。 */
-    val systemPromptPrependEnabled: Boolean = false,
 ) {
     val isActive: Boolean get() =
-        aliases.isNotEmpty() || (systemPromptPrependEnabled && systemPromptPrepend.isNotBlank()) ||
+        aliases.isNotEmpty() ||
             (systemPromptAppendEnabled && systemPromptAppend.isNotBlank()) || stripThinkTags
 
     fun toJson(): JsonObject = JsonObject().apply {
@@ -301,7 +240,6 @@ data class MiddlewareSettings(
         addProperty("systemPromptAppend", systemPromptAppend)
         addProperty("systemPromptAppendEnabled", systemPromptAppendEnabled)
         addProperty("systemPromptPrepend", systemPromptPrepend)
-        addProperty("systemPromptPrependEnabled", systemPromptPrependEnabled)
         addProperty("stripThinkTags", stripThinkTags)
     }
 
@@ -330,9 +268,6 @@ data class MiddlewareSettings(
                     obj.get("systemPromptAppendEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean
                         ?: appendText.isNotBlank(),
                 systemPromptPrepend = prependText,
-                systemPromptPrependEnabled =
-                    obj.get("systemPromptPrependEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean
-                        ?: prependText.isNotBlank(),
                 stripThinkTags = obj.get("stripThinkTags")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false,
             )
         }
