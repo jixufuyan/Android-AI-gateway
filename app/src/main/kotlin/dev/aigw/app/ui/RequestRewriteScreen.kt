@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,25 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
     // 默认收起成 3 行，点「展开/收起」手动切换
     var appendExpanded by remember { mutableStateOf(false) }
     var prependExpanded by remember { mutableStateOf(false) }
+
+    // 停止输入 700ms 后自动落盘。原先只有「保存」按钮能落盘，直接返回上一页就白填了 ——
+    // 加载回来的 state 还是旧值，用户看到的现象就是「注入提示词填了但完全没生效」。
+    LaunchedEffect(systemPrepend) {
+        if (systemPrepend != state.middleware.systemPromptPrepend) {
+            kotlinx.coroutines.delay(700)
+            viewModel.updateMiddleware(
+                state.middleware.copy(systemPromptPrepend = systemPrepend),
+            )
+        }
+    }
+    LaunchedEffect(systemAppend) {
+        if (systemAppend != state.middleware.systemPromptAppend) {
+            kotlinx.coroutines.delay(700)
+            viewModel.updateMiddleware(
+                state.middleware.copy(systemPromptAppend = systemAppend),
+            )
+        }
+    }
 
     PageScaffold(
         title = "请求改写",
@@ -103,7 +123,12 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                     checked = state.middleware.systemPromptAppendEnabled,
                     onCheckedChange = { enabled ->
                         viewModel.updateMiddleware(
-                            state.middleware.copy(systemPromptAppendEnabled = enabled),
+                            // 带上当前输入框里的文字：否则 state.middleware 里还是上一次保存的旧值，
+                            // 切开关会把刚打的字冲掉（表现成「填了提示词，一碰开关就没了」）
+                            state.middleware.copy(
+                                systemPromptAppendEnabled = enabled,
+                                systemPromptAppend = systemAppend,
+                            ),
                         )
                     },
                 )
@@ -164,7 +189,11 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                     checked = state.middleware.systemPromptPrependEnabled,
                     onCheckedChange = { enabled ->
                         viewModel.updateMiddleware(
-                            state.middleware.copy(systemPromptPrependEnabled = enabled),
+                            // 同上：把输入框当前内容一并写回，避免切开关冲掉未保存的注入文本
+                            state.middleware.copy(
+                                systemPromptPrependEnabled = enabled,
+                                systemPromptPrepend = systemPrepend,
+                            ),
                         )
                     },
                 )

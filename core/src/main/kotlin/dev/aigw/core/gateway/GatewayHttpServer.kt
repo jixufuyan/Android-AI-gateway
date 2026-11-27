@@ -545,7 +545,11 @@ class GatewayHttpServer(
                 break
             }
 
-            val prepared = withModel(body, resolvedModel)
+            // 必须基于 rewritten（已过中间件链）而不是原始 body：
+            // 别名 / system 前置注入（破甲提示词） / 追加 / think 清理都写在 rewritten 里，
+            // 用 body 会让这些改写只影响路由判断，真正发往上游的请求体仍是原始内容，
+            // 表现就是「设置里填了注入提示词，上游完全没收到」。
+            val prepared = withModel(rewritten, resolvedModel)
             val secSettings = engine.securitySettings()
             // 反审核脱敏：仅改写 system 消息内的敏感词（注入零宽空格），完全不触碰 user 输入
             val sanitized = engine.sanitizer.sanitizeOpenAiBody(prepared, resolvedModel, secSettings.sanitizeEnabled)

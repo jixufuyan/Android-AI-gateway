@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -47,11 +50,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +68,8 @@ import androidx.compose.ui.unit.sp
 import dev.aigw.app.ui.theme.LocalAppColors
 import dev.aigw.core.pool.AccountStatus
 import dev.aigw.core.provider.CreditUnit
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** 账号状态文案：只有凭证失效与手动停用两种异常态，正常即「可用」。 */
 fun accountStatusText(account: AccountStatus): String = when {
@@ -168,6 +175,11 @@ fun PageScaffold(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // 键盘弹起时把内容区上推：edge-to-edge 下 windowSoftInputMode=adjustResize 不再
+                // 收缩窗口，IME 会直接盖在内容上（输入框被挡就是这里缺 imePadding）。
+                // 必须放在 verticalScroll 之前：顺序反了只会给内容加底部空白，视口高度不变，
+                // 输入框依旧被盖住。
+                .imePadding()
                 // 滚动到顶部/底部时内容与页头、屏幕边缘直接相接，看着像被切了一刀；
                 // 用背景色渐隐过渡（Motion.scrollFade），让长页面有「还能滚」的提示
                 .scrollFade()
@@ -297,11 +309,29 @@ fun AppTextField(
     colors: androidx.compose.material3.TextFieldColors = appTextFieldColors(),
     interactionSource: androidx.compose.foundation.interaction.MutableInteractionSource? = null,
 ) {
+    // 聚焦时主动把输入框滚进可视区。
+    // 长表单里输入框常靠近屏幕底部，键盘弹起后如果只靠 imePadding 收缩视口，
+    // 输入框仍会停在键盘下面（光标看不见、打字看不到结果）。这里在拿到焦点后
+    // 延迟一帧再请求 bringIntoView —— 键盘高度变化会触发一次 relayout，
+    // 立即请求会用旧视口算错位置，滚动等于没做。
+    val bringIntoView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val focusRelocation = Modifier
+        .bringIntoViewRequester(bringIntoView)
+        .onFocusChanged { focusState ->
+            if (focusState.isFocused) {
+                scope.launch {
+                    delay(160)
+                    bringIntoView.bringIntoView()
+                }
+            }
+        }
+
     // 必须写全限定名：本文件里 OutlinedTextField( 会被批量替换成 AppTextField(，写成裸调用会自己调自己
     androidx.compose.material3.OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = modifier.then(focusRelocation),
         enabled = enabled,
         readOnly = readOnly,
         label = label,
