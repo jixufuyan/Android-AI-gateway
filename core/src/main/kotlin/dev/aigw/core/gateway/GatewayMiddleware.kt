@@ -279,8 +279,8 @@ data class MiddlewareSettings(
     val aliases: Map<String, String> = emptyMap(),
     /** 追加到 system 提示词末尾的文本；空串表示不改。 */
     val systemPromptAppend: String = "",
-    /** 追加总开关：关掉后内容保留但不再追加（临时停用，免清空重填）。 */
-    val systemPromptAppendEnabled: Boolean = true,
+    /** 追加总开关：默认关闭。开启必须同时满足「有内容」，见 RequestRewriteScreen 的拦截。 */
+    val systemPromptAppendEnabled: Boolean = false,
     /**
      * 注入到 system 提示词**最前面**的文本；空串表示不注入。
      *
@@ -289,8 +289,8 @@ data class MiddlewareSettings(
     val systemPromptPrepend: String = "",
     /** 是否从 assistant 消息里剥掉 `<think>…</think>`。 */
     val stripThinkTags: Boolean = false,
-    /** 注入提示词总开关：关掉后内容保留但不再注入（临时停用，免清空重填）。 */
-    val systemPromptPrependEnabled: Boolean = true,
+    /** 注入提示词总开关：默认关闭。开启必须同时满足「有内容」，见 RequestRewriteScreen 的拦截。 */
+    val systemPromptPrependEnabled: Boolean = false,
 ) {
     val isActive: Boolean get() =
         aliases.isNotEmpty() || (systemPromptPrependEnabled && systemPromptPrepend.isNotBlank()) ||
@@ -318,14 +318,21 @@ data class MiddlewareSettings(
                     if (target.isNotBlank()) aliases[from] = target
                 }
             }
+            val appendText = obj.stringOrNull("systemPromptAppend").orEmpty()
+            val prependText = obj.stringOrNull("systemPromptPrepend").orEmpty()
             return MiddlewareSettings(
                 aliases = aliases,
-                systemPromptAppend = obj.stringOrNull("systemPromptAppend").orEmpty(),
+                systemPromptAppend = appendText,
+                // 默认关闭：开关与内容解耦后，「有内容」不再等于「要启用」。
+                // 老配置没有该字段时按「有内容即视为开」处理，否则升级后已有用户
+                // 的追加/注入会被静默关掉，且界面上看不出原因。
                 systemPromptAppendEnabled =
-                    obj.get("systemPromptAppendEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: true,
-                systemPromptPrepend = obj.stringOrNull("systemPromptPrepend").orEmpty(),
+                    obj.get("systemPromptAppendEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean
+                        ?: appendText.isNotBlank(),
+                systemPromptPrepend = prependText,
                 systemPromptPrependEnabled =
-                    obj.get("systemPromptPrependEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: true,
+                    obj.get("systemPromptPrependEnabled")?.takeIf { it.isJsonPrimitive }?.asBoolean
+                        ?: prependText.isNotBlank(),
                 stripThinkTags = obj.get("stripThinkTags")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false,
             )
         }

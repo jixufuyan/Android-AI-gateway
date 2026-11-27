@@ -924,12 +924,20 @@ private fun concurrencySummary(failover: dev.aigw.core.failover.ModelFailoverSet
     }
 }
 
-/** 请求改写入口行的右侧摘要：一眼看出开了哪几项。 */
+/** 请求改写入口行的右侧摘要：一眼看出**实际已生效**的改写项。
+ *
+ * 每项都必须同时满足「开关开着」+「内容非空」才算启用 —— 只看内容非空会把
+ * 已关闭（或填了字但没开开关）的项目也列出来，与真实发送到上游的内容不符。
+ */
 private fun rewriteSummary(settings: dev.aigw.core.gateway.MiddlewareSettings): String {
     val parts = buildList {
         if (settings.aliases.isNotEmpty()) add("别名 ${settings.aliases.size}")
-        if (settings.systemPromptPrepend.isNotBlank()) add("注入提示词")
-        if (settings.systemPromptAppend.isNotBlank()) add("追加提示词")
+        if (settings.systemPromptPrependEnabled && settings.systemPromptPrepend.isNotBlank()) {
+            add("注入提示词")
+        }
+        if (settings.systemPromptAppendEnabled && settings.systemPromptAppend.isNotBlank()) {
+            add("追加提示词")
+        }
         if (settings.stripThinkTags) add("清理思考标签")
     }
     return if (parts.isEmpty()) "未启用" else parts.joinToString("、")

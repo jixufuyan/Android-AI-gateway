@@ -49,19 +49,36 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
 
     // 停止输入 700ms 后自动落盘。原先只有「保存」按钮能落盘，直接返回上一页就白填了 ——
     // 加载回来的 state 还是旧值，用户看到的现象就是「注入提示词填了但完全没生效」。
+    // 内容被清空时同时把开关关掉：留一个「开着但没内容」的开关只会误导。
     LaunchedEffect(systemPrepend) {
+        val blank = systemPrepend.isBlank()
         if (systemPrepend != state.middleware.systemPromptPrepend) {
             kotlinx.coroutines.delay(700)
             viewModel.updateMiddleware(
-                state.middleware.copy(systemPromptPrepend = systemPrepend),
+                if (blank) {
+                    state.middleware.copy(
+                        systemPromptPrepend = systemPrepend,
+                        systemPromptPrependEnabled = false,
+                    )
+                } else {
+                    state.middleware.copy(systemPromptPrepend = systemPrepend)
+                },
             )
         }
     }
     LaunchedEffect(systemAppend) {
+        val blank = systemAppend.isBlank()
         if (systemAppend != state.middleware.systemPromptAppend) {
             kotlinx.coroutines.delay(700)
             viewModel.updateMiddleware(
-                state.middleware.copy(systemPromptAppend = systemAppend),
+                if (blank) {
+                    state.middleware.copy(
+                        systemPromptAppend = systemAppend,
+                        systemPromptAppendEnabled = false,
+                    )
+                } else {
+                    state.middleware.copy(systemPromptAppend = systemAppend)
+                },
             )
         }
     }
@@ -122,20 +139,28 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 AppSwitch(
                     checked = state.middleware.systemPromptAppendEnabled,
                     onCheckedChange = { enabled ->
-                        viewModel.updateMiddleware(
-                            // 带上当前输入框里的文字：否则 state.middleware 里还是上一次保存的旧值，
-                            // 切开关会把刚打的字冲掉（表现成「填了提示词，一碰开关就没了」）
-                            state.middleware.copy(
-                                systemPromptAppendEnabled = enabled,
-                                systemPromptAppend = systemAppend,
-                            ),
-                        )
+                        // 内容为空时不允许开启：空内容即便开了开关也不会产生任何追加，
+                        // 开关亮着却什么都不发生，容易被误判成「功能坏了」。
+                        if (enabled && systemAppend.isBlank()) {
+                            viewModel.notice("先在「追加内容」里填写文本，再打开开关")
+                        } else {
+                            viewModel.updateMiddleware(
+                                // 带上当前输入框里的文字：否则 state.middleware 里还是上一次保存的旧值，
+                                // 切开关会把刚打的字冲掉（表现成「填了提示词，一碰开关就没了」）
+                                state.middleware.copy(
+                                    systemPromptAppendEnabled = enabled,
+                                    systemPromptAppend = systemAppend,
+                                ),
+                            )
+                        }
                     },
                 )
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "追加到第一条 system 消息的末尾；没有 system 消息时新建一条。留空表示不改。",
+                text = "追加到第一条 system 消息的**末尾**（原指令在前、追加在后）。" +
+                    "没有 system 消息时新建一条。留空表示不改。" +
+                    "与「注入提示词」的区别：那个是排在原 system **前面**，必须优先于客户端指令生效。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -188,20 +213,27 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 AppSwitch(
                     checked = state.middleware.systemPromptPrependEnabled,
                     onCheckedChange = { enabled ->
-                        viewModel.updateMiddleware(
-                            // 同上：把输入框当前内容一并写回，避免切开关冲掉未保存的注入文本
-                            state.middleware.copy(
-                                systemPromptPrependEnabled = enabled,
-                                systemPromptPrepend = systemPrepend,
-                            ),
-                        )
+                        // 同上：空内容不允许开启，避免「开关亮着但什么都没注入」
+                        if (enabled && systemPrepend.isBlank()) {
+                            viewModel.notice("先在「注入内容」里填写文本，再打开开关")
+                        } else {
+                            viewModel.updateMiddleware(
+                                // 把输入框当前内容一并写回，避免切开关冲掉未保存的注入文本
+                                state.middleware.copy(
+                                    systemPromptPrependEnabled = enabled,
+                                    systemPromptPrepend = systemPrepend,
+                                ),
+                            )
+                        }
                     },
                 )
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "放到对话最前面的 system 文本，用于破甲 / 角色设定这类必须排在最前的场景；" +
-                    "空着就不注入。本应用**不内置任何载荷**，内容完全由你决定（存储在本地设置里）。",
+                text = "拼在第一条 system 消息的**最前面**（注入内容在前、客户端原指令在后），" +
+                    "用于破甲 / 角色设定这类必须优先于客户端指令生效的场景。" +
+                    "与「追加提示词」的区别：那个是拼在末尾、不抢位置。" +
+                    "空着不注入，内容完全由你决定（存储在本地设置里）。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
