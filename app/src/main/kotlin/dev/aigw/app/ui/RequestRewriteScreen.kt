@@ -117,7 +117,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
             }
         }
 
-        SectionLabel("system 提示词追加")
+        SectionLabel("system 末尾追加")
         SectionCard(enterIndex = 2) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -125,7 +125,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "启用追加",
+                        text = "启用末尾追加",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -142,7 +142,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                         // 内容为空时不允许开启：空内容即便开了开关也不会产生任何追加，
                         // 开关亮着却什么都不发生，容易被误判成「功能坏了」。
                         if (enabled && systemAppend.isBlank()) {
-                            viewModel.notice("先在「追加内容」里填写文本，再打开开关")
+                            viewModel.notice("先在「追加文本」里填写内容，再打开开关")
                         } else {
                             viewModel.updateMiddleware(
                                 // 带上当前输入框里的文字：否则 state.middleware 里还是上一次保存的旧值，
@@ -167,7 +167,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
             AppTextField(
                 value = systemAppend,
                 onValueChange = { systemAppend = it },
-                label = { Text("追加内容") },
+                label = { Text("追加文本") },
                 minLines = if (appendExpanded) 6 else 3,
                 maxLines = if (appendExpanded) 12 else 3,
                 modifier = Modifier.fillMaxWidth(),
@@ -186,12 +186,12 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 )
                 Spacer(Modifier.weight(1f))
             }
-            OutlineActionButton("保存追加内容") {
+            OutlineActionButton("保存追加文本") {
                 viewModel.updateMiddleware(state.middleware.copy(systemPromptAppend = systemAppend))
             }
         }
 
-        SectionLabel("注入提示词（自定义）")
+        SectionLabel("system 前置注入（自定义）")
         SectionCard(enterIndex = 9) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -199,7 +199,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "启用注入",
+                        text = "启用前置注入",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -215,7 +215,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                     onCheckedChange = { enabled ->
                         // 同上：空内容不允许开启，避免「开关亮着但什么都没注入」
                         if (enabled && systemPrepend.isBlank()) {
-                            viewModel.notice("先在「注入内容」里填写文本，再打开开关")
+                            viewModel.notice("先在「注入文本」里填写内容，再打开开关")
                         } else {
                             viewModel.updateMiddleware(
                                 // 把输入框当前内容一并写回，避免切开关冲掉未保存的注入文本
@@ -240,7 +240,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
             AppTextField(
                 value = systemPrepend,
                 onValueChange = { systemPrepend = it },
-                label = { Text("注入内容") },
+                label = { Text("注入文本") },
                 placeholder = { Text("（留空 = 不注入）") },
                 minLines = if (prependExpanded) 6 else 3,
                 maxLines = if (prependExpanded) 12 else 3,
@@ -260,7 +260,7 @@ fun RequestRewriteScreen(state: AppUiState, viewModel: AppViewModel, onBack: () 
                 )
                 Spacer(Modifier.weight(1f))
             }
-            OutlineActionButton("保存注入内容") {
+            OutlineActionButton("保存注入文本") {
                 viewModel.updateMiddleware(
                     state.middleware.copy(systemPromptPrepend = systemPrepend),
                 )

@@ -191,7 +191,7 @@ fun MeScreen(state: AppUiState, viewModel: AppViewModel, open: (SubPage) -> Unit
             ) { open(SubPage.ModelPricing) }
             EditorialRow(
                 "请求改写 · REWRITE",
-                "模型别名、系统注入 / 追加与思考标签",
+                "模型别名、system 前置注入 / 末尾追加与思考标签",
                 rewriteSummary(state.middleware),
             ) { open(SubPage.RequestRewrite) }
             EditorialRow(
@@ -933,10 +933,10 @@ private fun rewriteSummary(settings: dev.aigw.core.gateway.MiddlewareSettings): 
     val parts = buildList {
         if (settings.aliases.isNotEmpty()) add("别名 ${settings.aliases.size}")
         if (settings.systemPromptPrependEnabled && settings.systemPromptPrepend.isNotBlank()) {
-            add("注入提示词")
+            add("前置注入")
         }
         if (settings.systemPromptAppendEnabled && settings.systemPromptAppend.isNotBlank()) {
-            add("追加提示词")
+            add("末尾追加")
         }
         if (settings.stripThinkTags) add("清理思考标签")
     }
