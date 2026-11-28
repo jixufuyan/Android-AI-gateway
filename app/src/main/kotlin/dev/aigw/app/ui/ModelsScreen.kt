@@ -43,6 +43,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -172,6 +173,11 @@ fun ModelsScreen(state: AppUiState, viewModel: AppViewModel) {
                     )
                 }
             }
+
+            // 倍率数据来源：一行极淡的脚注，不用整块卡片占掉列表第一条的位置。
+            // 倍率数字本身显示在每个模型行里（「倍率 0.29×」），这里只回答
+            // 「这些数字是什么时候拉下来的」——看不见更新时间的倍率，用户没法判断该不该信。
+            RateFootnote(state, onRefresh = { viewModel.syncRates() })
         }
 
         LazyColumn(
@@ -603,4 +609,76 @@ private fun ModelSkeletonCard(
             }
         }
     }
+}
+
+/**
+ * 倍率数据脚注：一行淡色小字，回答「这些倍率是什么时候拉下来的」。
+ *
+ * 刻意不做成卡片。倍率不是页面主体，把它做成列表第一条的整块卡片，
+ * 既抢了模型列表的视线，也和「倍率 0.29×」这种行内标签是同一件事的两种表达——
+ * 同一份数据在一个页面出现两种形态，看着才别扭。
+ */
+@Composable
+private fun RateFootnote(state: AppUiState, onRefresh: () -> Unit) {
+    val status = state.rateStatus
+    val failed = status.lastError.isNotEmpty()
+    val text = when {
+        state.rateSyncing -> "倍率数据 · 正在更新…"
+        failed -> "倍率数据 · 上次更新失败：${status.lastError.take(48)}"
+        status.neverSynced -> "倍率数据 · 使用内置值，点此更新"
+        status.entryCount == 0 -> "倍率数据 · 远程表为空，使用内置值，点此更新"
+        else -> buildString {
+            append("倍率数据 · ${status.entryCount} 条")
+            status.tableUpdated.takeIf { it.isNotEmpty() }?.let { append(" · 表 $it") }
+            append(" · 更新于 ${rateStamp(status.lastSyncAt)}")
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(enabled = !state.rateSyncing, onClick = onRefresh)
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (failed) {
+                MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (state.rateSyncing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(10.dp),
+                strokeWidth = 1.5.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            )
+        } else {
+            Text(
+                text = "刷新",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            )
+        }
+    }
+}
+
+/** `1699999999999` → `11-26 14:03`；0 或异常返回「未知」。 */
+private fun rateStamp(millis: Long): String {
+    if (millis <= 0L) return "未知"
+    val c = java.util.Calendar.getInstance()
+    c.timeInMillis = millis
+    return "%02d-%02d %02d:%02d".format(
+        c.get(java.util.Calendar.MONTH) + 1,
+        c.get(java.util.Calendar.DAY_OF_MONTH),
+        c.get(java.util.Calendar.HOUR_OF_DAY),
+        c.get(java.util.Calendar.MINUTE),
+    )
 }

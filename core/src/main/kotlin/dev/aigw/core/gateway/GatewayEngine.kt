@@ -211,6 +211,18 @@ class GatewayEngine(
     val requestLog = RequestLog(store, nowMillis = nowMillis)
     val registry = ProviderRegistry()
 
+    /**
+     * 倍率台账：远程表 + 供应商现场数据的覆盖层。
+     *
+     * 模型目录在出网关前统一由 [withRates] 补/覆盖倍率字段，
+     * 所以新增供应商不必自己维护倍率表——上游接口里有就能自动显示。
+     * 台账在存储里持久化，改数据只要改仓库里的 `config/model-rates.json`，不必发版。
+     */
+    val rateBook = dev.aigw.core.rate.RateBook(store, nowMillis)
+
+    /** 倍率表同步器；看门狗按 12 小时节流调用，模型页也可手动触发。 */
+    val rateSync = dev.aigw.core.rate.RateSync(rateBook, nowMillis = nowMillis)
+
     val sanitizer = dev.aigw.core.security.RequestSanitizer(nowMillis)
     val rateLimiter = dev.aigw.core.security.AccountRateLimiter(nowMillis)
 
@@ -398,6 +410,20 @@ class GatewayEngine(
     }
 
     fun pricingTable(): dev.aigw.core.usage.PricingTable = pricingTable
+
+    /** 倍率同步状态快照（界面展示更新时间/条数/失败原因）。 */
+    fun rateStatus(): dev.aigw.core.rate.RateSyncStatus = rateBook.status()
+
+    /** 手动触发一次倍率表同步（跳过 12 小时节流，但仍不允许重入）。 */
+    fun syncRatesNow(): dev.aigw.core.rate.RateSync.Result {
+        val result = rateSync.maybeSync(force = true)
+        if (result.ok && !result.skipped) {
+            log("倍率表已更新：${result.count} 条（${result.source}）")
+        } else if (!result.ok) {
+            logWarn("倍率表更新失败：${result.error}")
+        }
+        return result
+    }
 
     fun updatePricingTable(updated: dev.aigw.core.usage.PricingTable) {
         pricingTable = updated
@@ -1647,6 +1673,8 @@ class GatewayEngine(
             }
             if (chunk == null) continue
             aggregated.addAll(chunk.models)
+            // 目录里自带倍率的（CodeBuddy 的 credits 串等）升到现场层，同步远程表时不会被顶掉
+            runCatching { recordLiveRates(chunk.providerId, chunk.models) }
             // 「没有账号」不是失败：登录前本就不该有模型，供应商自报的 error 也不该报红。
             // 这条约定原本只靠各 Provider 自觉（历史上 ChatGPT 就违反了），在这里统一兜住。
             if (chunk.error != null && pool.accounts(providerId).isEmpty()) continue
@@ -1822,7 +1850,46 @@ class GatewayEngine(
     /** 用给定账号拉一份模型目录；凭证临期或已过期时先做一次安全的 refreshAccount 保鲜。 */
     private fun fetchCatalog(provider: Provider, picked: ProviderAccount?): ProviderModelCatalogView {
         val account = picked?.let { freshAccount(provider, it) }
-        return provider.listModels(account)
+        return withRates(provider.id, provider.listModels(account))
+    }
+
+    /**
+     * 用倍率台账给模型条目补/覆盖倍率字段。
+     *
+     * 分层优先级：台账里的现场数据（LIVE）> 远程表（REMOTE）> provider 编译进去的兜底值。
+     * 台账没有该模型记录时原样返回 —— 绝不用「猜」的数字填空：
+     * 一个编造的倍率比没有倍率更糟，用户会照着它算钱。
+     */
+    private fun withRates(providerId: String, view: ProviderModelCatalogView): ProviderModelCatalogView {
+        if (view.models.isEmpty()) return view
+        var changed = false
+        val decorated = view.models.map { model ->
+            val entry = rateBook.rate(providerId, model.id) ?: return@map model
+            changed = true
+            // 现场层的数据可能只是「重算缓存」，台账里没有也要标记，让界面知道数字是新的
+            model.copy(extra = model.extra + entry.toExtras())
+        }
+        return if (changed) view.copy(models = decorated) else view
+    }
+
+    /**
+     * 把某个供应商目录里带的价格信息登记成「现场倍率」。
+     *
+     * 有些上游（如 CodeBuddy 的 `credits` 串）当场就把倍率写进目录，
+     * 这类数据比任何静态表都可靠，所以升到 LIVE 层，同步远程表时不会被顶掉。
+     * 只登记能解析成数字的条目，解析不了就跳过，不做猜测。
+     */
+    fun recordLiveRates(providerId: String, models: List<RoutedModel>) {
+        for (routed in models) {
+            val raw = routed.model.extra["rate"]?.trim().orEmpty()
+            if (raw.isEmpty()) continue
+            val value = raw.removeSuffix("×").removeSuffix("x").trim().toDoubleOrNull() ?: continue
+            rateBook.recordLive(
+                providerId,
+                routed.model.id,
+                dev.aigw.core.rate.RateEntry(base = value, source = "上游目录", origin = dev.aigw.core.rate.RateOrigin.LIVE),
+            )
+        }
     }
 
     /**

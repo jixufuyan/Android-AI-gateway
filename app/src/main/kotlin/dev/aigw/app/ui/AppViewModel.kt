@@ -378,6 +378,10 @@ data class AppUiState(
     val middleware: dev.aigw.core.gateway.MiddlewareSettings = dev.aigw.core.gateway.MiddlewareSettings(),
     /** 各改写中间件最近一次失败原因，键为中间件 id。 */
     val middlewareFailures: Map<String, String> = emptyMap(),
+    /** 倍率表同步状态（更新时间/条数/线路/失败原因）。 */
+    val rateStatus: dev.aigw.core.rate.RateSyncStatus = dev.aigw.core.rate.RateSyncStatus(),
+    /** 倍率表是否正在同步（手动刷新时转圈）。 */
+    val rateSyncing: Boolean = false,
     /** 首页组件顺序（含被隐藏的项，隐藏态看 [homeHidden]）。 */
     val homeOrder: List<HomeWidget> = HomeWidget.entries,
     /** 首页被隐藏的组件。 */
@@ -424,6 +428,7 @@ private class Snapshot(
     val pricing: dev.aigw.core.usage.PricingTable,
     val middleware: dev.aigw.core.gateway.MiddlewareSettings,
     val middlewareFailures: Map<String, String>,
+    val rateStatus: dev.aigw.core.rate.RateSyncStatus,
 )
 
 class AppViewModel(
@@ -577,6 +582,7 @@ class AppViewModel(
                     pricing = engine.pricingTable(),
                     middleware = engine.middlewareSettings(),
                     middlewareFailures = engine.middleware().failures(),
+                    rateStatus = engine.rateBook.status(),
                 )
             }
             _state.value = _state.value.copy(
@@ -668,6 +674,14 @@ class AppViewModel(
     fun refreshModels(silent: Boolean = false, forceRefresh: Boolean = false) {
         val gen = ++modelsGeneration
         modelsFetchedAt = System.currentTimeMillis()
+        // 台账里一条倍率都没有时，目录拉下来也全是空白倍率：
+        // 顺带拉一次远程表（12 小时内已成功过则直接跳过），失败也照常显示内置兜底值
+        if (engine.rateBook.count() == 0 && engine.rateBook.shouldRefresh()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { engine.rateSync.maybeSync() }
+                _state.value = _state.value.copy(rateStatus = engine.rateBook.status())
+            }
+        }
         viewModelScope.launch {
             // 已有目录可展示时降级为静默：旧数据立即可见，新数据分批到货逐组替换，不弹全屏 busy
             val quiet = silent || _state.value.models.isNotEmpty()
@@ -704,6 +718,46 @@ class AppViewModel(
             )
             // 清名单要读写加密存储（同步落盘），放到 IO 线程，避免主线程卡帧
             pruneStaleExposure(catalog.models)
+            // 目录已经带上倍率，同步把状态刷成最新（同步可能刚才才完成）
+            _state.value = _state.value.copy(rateStatus = engine.rateBook.status())
+        }
+    }
+
+    /**
+     * 手动刷新倍率表。
+     *
+     * 与「刷新模型」分开：拉一次几 KB 的 JSON，不必重拉整份模型目录。
+     * 拿到新数据后原地刷新模型条目上的倍率字段——不用重新请求上游。
+     */
+    fun syncRates() {
+        if (_state.value.rateSyncing) return
+        _state.value = _state.value.copy(rateSyncing = true)
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { engine.syncRatesNow() }.getOrNull() }
+            _state.value = _state.value.copy(
+                rateSyncing = false,
+                rateStatus = engine.rateBook.status(),
+                models = result?.takeIf { it.ok && it.count > 0 }?.let { reapplyRates(_state.value.models) }
+                    ?: _state.value.models,
+                busy = "",
+            )
+            if (result != null && !result.ok) {
+                _state.value = _state.value.copy(modelsError = "")
+            }
+        }
+    }
+
+    /**
+     * 用最新台账重新给已加载的模型条目盖倍率，不重新请求上游。
+     *
+     * 只覆盖台账里查得到的字段：台账里没有的记录保持原样（可能是供应商目录自带的值），
+     * 不做「把旧的抹掉」这种动作——拉表失败时界面不该突然变空。
+     */
+    private suspend fun reapplyRates(models: List<RoutedModel>): List<RoutedModel> = withContext(Dispatchers.IO) {
+        models.map { routed ->
+            val entry = engine.rateBook.rate(routed.providerId, routed.model.id)
+                ?: return@map routed
+            routed.copy(model = routed.model.copy(extra = routed.model.extra + entry.toExtras()))
         }
     }
 

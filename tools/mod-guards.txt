@@ -45,3 +45,35 @@ app/src/main/kotlin/dev/aigw/app/ui/Components.kt|fun AppTextField(|统一输入
 app/src/main/kotlin/dev/aigw/app/ui/Components.kt|androidx.compose.material3.OutlinedTextField(|AppTextField 内部必须全限定名调用，裸调用被批量替换会自己调自己
 app/src/main/kotlin/dev/aigw/app/ui/Components.kt|fun appTextFieldColors|输入框配色（未聚焦描边不用 outline）
 app/src/main/kotlin/dev/aigw/app/ui/theme/Theme.kt|val InputOutline|输入框描边色 token（#6E737C，对白卡 4.8:1 / 对话框 3.9:1）
+
+# ---- 提示词注入必须真正送达上游（2.39.3 关键修复，回归了会静默失效）----
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayHttpServer.kt|withModel(rewritten, resolvedModel)|转发必须用中间件改写后的 body（rewritten），用原始 body 会让注入静默失效
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayMiddleware.kt|systemPromptAppend|末尾追加中间件（实测唯一生效的注入位置）
+core/src/test/kotlin/dev/aigw/core/gateway/PromptInjectionDeliveryTest.kt|withModel(rewritten|注入送达测试必须断言 rewritten 被用上（改回 body 时它会失败）
+
+# ---- 输入框不被输入法遮挡（enableEdgeToEdge 下 adjustResize 失效）----
+app/src/main/kotlin/dev/aigw/app/ui/Components.kt|imePadding()|PageScaffold 必须 imePadding，否则长表单输入框被键盘盖住
+app/src/main/kotlin/dev/aigw/app/ui/Components.kt|BringIntoViewRequester|AppTextField 聚焦后 bringIntoView，键盘弹起时滚到可见区
+
+# ---- 请求改写开关与胶囊显示必须同口径（只看内容非空会把关着的开关也显示成已启用）----
+app/src/main/kotlin/dev/aigw/app/ui/MeScreen.kt|systemPromptAppendEnabled && settings.systemPromptAppend.isNotBlank()|胶囊必须同时判开关与内容，缺一就误报已启用
+
+# ---- 倍率数据：远程表 + 现场层（2.41.0 起，本 fork 2.39.4 补入）----
+# 这一段是本 fork 自己加的，上游 xibai6668 没有 core/rate/ 这个模块。
+# 合并上游时若出现「倍率全空」，先跑 check-guards.sh，八成是这里的某条被覆盖了。
+core/src/main/kotlin/dev/aigw/core/rate/RateEntry.kt|const val MAX_REASONABLE|倍率上限护栏：脏数据整条丢弃，不许显示成 9999×
+core/src/main/kotlin/dev/aigw/core/rate/RateEntry.kt|fun toExtras()|倍率转界面字段（键名 rate/rateDiscount 必须与 ModelsScreen 一致）
+core/src/main/kotlin/dev/aigw/core/rate/RateBook.kt|fun importRemote(|远程表导入：整体替换远程层，现场层(LIVE)不被顶掉
+core/src/main/kotlin/dev/aigw/core/rate/RateBook.kt|fun recordLive(|供应商目录现场倍率登记入口
+core/src/main/kotlin/dev/aigw/core/rate/RateBook.kt|fun shouldRefresh(|12 小时节流 / 失败 30 分钟退避
+core/src/main/kotlin/dev/aigw/core/rate/RateSync.kt|for (mirror in UpdateSources.DOWNLOAD)|线路两层循环：仓库(本 fork→数据源) × 镜像
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|val rateBook = dev.aigw.core.rate.RateBook|引擎必须持有倍率台账
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|return withRates(provider.id, provider.listModels(account))|模型目录出网关前必须过倍率注入
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|private fun withRates(|倍率注入实现（台账无记录时原样返回，不猜数字）
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|recordLiveRates(chunk.providerId, chunk.models)|目录自带倍率升到现场层，防止被远程表顶掉
+core/src/main/kotlin/dev/aigw/core/gateway/GatewayEngine.kt|fun syncRatesNow(|手动刷新倍率表入口
+app/src/main/kotlin/dev/aigw/app/service/GatewayService.kt|maybeSyncRates()|看门狗 30 秒节拍里顺带跑倍率同步（不新建 WorkManager）
+app/src/main/kotlin/dev/aigw/app/ui/AppViewModel.kt|fun syncRates()|模型页手动刷新倍率
+app/src/main/kotlin/dev/aigw/app/ui/AppViewModel.kt|private suspend fun reapplyRates|拿到新表后原地刷新模型倍率，不重拉目录
+app/src/main/kotlin/dev/aigw/app/ui/ModelsScreen.kt|private fun RateFootnote(|倍率数据只用一行脚注，不许做成整块卡片挤占列表第一条
+app/src/main/kotlin/dev/aigw/app/ui/ModelsScreen.kt|val rateLabel = extra["rate"]|模型行内倍率标签（这是用户看到的数字本体）
